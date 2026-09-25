@@ -54,11 +54,13 @@ nav ul li a:hover {
 
 .container {
     margin: 20px auto;
+    width: 90%;
     max-width: 800px;
     padding: 20px;
     text-align: center;
     background-color: #fff;
     box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
 }
 
 p {
@@ -175,6 +177,11 @@ header {
         padding: 10px 20px;
     }
     
+    .doctor-image {
+        max-width: 100%;
+        width: 100%;
+    }
+    
     /* Make navigation mobile friendly */
     nav ul {
         display: flex;
@@ -231,14 +238,11 @@ header {
     background-color: #fff;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     text-align: center;
-    width: 714px;
-    /* Half of the image's width (1428 / 2) */
-    height: 1000px;
-    /* Half of the image's height (2000 / 2) */
-    max-width: 100%;
-    /* Optional: set a maximum width to prevent stretching on larger screens */
-    max-height: 100%;
-    /* Optional: set a maximum height to prevent stretching on smaller screens */
+    width: 90%;
+    max-width: 714px;
+    height: auto;
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .popup img {
@@ -264,17 +268,19 @@ header {
 
 .card {
     width: fit-content;
+    max-width: 100%;
     height: fit-content;
     background-color: rgb(238, 238, 238);
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     align-content: center;
     justify-content: center;
     padding: 25px 25px;
     gap: 20px;
+    box-sizing: border-box;
     box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.055);
     border-radius: 15px;
-    /* Add this line for rounded corners */
 }
 
 /* for all social containers*/

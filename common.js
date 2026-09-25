@@ -9,10 +9,31 @@ function loadHeader() {
                 <li><a href="about.html">About</a></li>
                 <li><a href="services.html">Services</a></li>
                 <li><a href="appointment.html">Book an Appointment</a></li>
+                <li><a href="https://gyromotionphysio.in/pms/">PMS</a></li>
             </ul>
         </nav>
     `;
-    document.getElementById('common-header').innerHTML = headerHTML;
+    const headerEl = document.getElementById('common-header');
+    if (headerEl) {
+        headerEl.innerHTML = headerHTML;
+    }
 }
 
-document.addEventListener('DOMContentLoaded', loadHeader);
+function loadFooter() {
+    const footerHTML = `
+        <center>
+            <footer>
+                <p>&copy; 2026 Gyromotion Physiotherapy Clinic. All rights reserved.</p>
+            </footer>
+        </center>
+    `;
+    const footerEl = document.getElementById('common-footer');
+    if (footerEl) {
+        footerEl.innerHTML = footerHTML;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadHeader();
+    loadFooter();
+});

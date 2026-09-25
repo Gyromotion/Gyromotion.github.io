@@ -10,7 +10,7 @@ function loadHeader() {
                 <li><a href="services.html">Services</a></li>
                 <li><a href="appointment.html">Book an Appointment</a></li>
                 <li><a href="https://gyromotionphysio.in/pms/">PMS</a></li>
-                <li><a href="https://gyromotion-nutriplan-ai.vercel.app" target="_blank">NutriPlan AI</a></li>
+                <li><a href="https://gyromotion-nutriplan-ai.vercel.app" target="_blank">NutriPlan</a></li>
             </ul>
         </nav>
     `;

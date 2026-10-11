@@ -4,150 +4,1317 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Terminal Loader</title>
+  <title>Book an Appointment - Gyromotion Physiotherapy Clinic</title>
+  <link rel="stylesheet" href="styles.css?v=5">
   <style>
+    :root {
+      --primary: #041f46;
+      --primary-light: #0d3875;
+      --accent: #10b981;
+      --accent-hover: #059669;
+      --whatsapp: #25D366;
+      --whatsapp-hover: #1eb956;
+      --bg-page: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --danger: #ef4444;
+    }
+
     body {
-      background: #212121;
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
     }
 
-    @keyframes blinkCursor {
-      50% {
-        border-right-color: transparent;
+    .scheduler-container {
+      max-width: 1120px;
+      margin: 30px auto 60px;
+      padding: 0 20px;
+    }
+
+    .scheduler-header {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    .scheduler-header h1 {
+      font-size: 2.2rem;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+
+    .scheduler-header p {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+    }
+
+    /* Tabs */
+    .tab-container {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+
+    .tab-btn {
+      background: #ffffff;
+      border: 2px solid var(--border);
+      color: var(--text-muted);
+      padding: 12px 28px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tab-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .tab-btn.active {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+      box-shadow: 0 4px 12px rgba(4, 31, 70, 0.2);
+    }
+
+    /* Grid Layout */
+    .booking-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.95fr;
+      gap: 30px;
+      align-items: start;
+    }
+
+    @media (max-width: 860px) {
+      .booking-grid {
+        grid-template-columns: 1fr;
       }
     }
 
-    @keyframes typeAndDelete {
-
-      0%,
-      10% {
-        width: 0;
-      }
-
-      45%,
-      55% {
-        width: 6.2em;
-      }
-
-      /* adjust width based on content */
-      90%,
-      100% {
-        width: 0;
-      }
+    .card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 28px;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
     }
 
-    .terminal-loader {
-      border: 0.1em solid #333;
-      background-color: #1a1a1a;
-      color: #0f0;
-      font-family: "Courier New", Courier, monospace;
-      font-size: 1em;
-      padding: 1.5em 1em;
-      width: 12em;
-      margin: 100px auto;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      border-radius: 4px;
-      position: relative;
-      overflow: hidden;
+    /* Form Styles */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 8px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: 0.95rem;
+      color: var(--text-main);
       box-sizing: border-box;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+      background: #ffffff;
     }
 
-    .terminal-header {
+    .form-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(4, 31, 70, 0.1);
+    }
+
+    /* Phone Input with Auto +91 */
+    .phone-input-group {
+      display: flex;
+      align-items: center;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      background: #ffffff;
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .phone-input-group:focus-within {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(4, 31, 70, 0.1);
+    }
+
+    .phone-prefix {
+      background: #f1f5f9;
+      color: var(--primary);
+      font-weight: 700;
+      padding: 12px 14px;
+      border-right: 1.5px solid var(--border);
+      font-size: 0.95rem;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .phone-control {
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      flex: 1;
+    }
+
+    .form-hint {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 5px;
+    }
+
+    textarea.form-control {
+      resize: vertical;
+      min-height: 90px;
+    }
+
+    /* File Dropzone */
+    .dropzone {
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      background: #f8fafc;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--primary);
+      background: #eff6ff;
+    }
+
+    .dropzone input[type="file"] {
       position: absolute;
       top: 0;
       left: 0;
-      right: 0;
-      height: 1.5em;
-      background-color: #333;
-      border-top-left-radius: 4px;
-      border-top-right-radius: 4px;
-      padding: 0 0.4em;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .dropzone-icon {
+      font-size: 2rem;
+      margin-bottom: 8px;
+    }
+
+    .file-chip-container {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .file-chip {
+      background: #e2e8f0;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .file-chip .remove-file {
+      cursor: pointer;
+      color: var(--danger);
+      font-weight: bold;
+    }
+
+    /* Calendar Component */
+    .calendar-card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    }
+
+    .calendar-title-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .calendar-month-year {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .cal-nav-btn {
+      background: #f1f5f9;
+      border: none;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: var(--primary);
+      transition: background 0.2s;
+    }
+
+    .cal-nav-btn:hover {
+      background: #e2e8f0;
+    }
+
+    .calendar-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+    }
+
+    .cal-day {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: var(--text-main);
+      transition: all 0.2s;
+    }
+
+    .cal-day:hover:not(:disabled) {
+      background: #e0f2fe;
+      color: var(--primary);
+    }
+
+    .cal-day.selected {
+      background: var(--primary) !important;
+      color: #ffffff !important;
+      font-weight: 700;
+    }
+
+    .cal-day.today {
+      border: 1.5px solid var(--primary);
+    }
+
+    .cal-day:disabled {
+      color: #cbd5e1;
+      cursor: not-allowed;
+    }
+
+    .cal-day.sunday {
+      color: #ef4444 !important;
+      background: #fef2f2 !important;
+      opacity: 0.7;
+      cursor: not-allowed !important;
+    }
+
+    .calendar-weekdays div:last-child {
+      color: #ef4444;
+    }
+
+    .cal-day.empty {
+      cursor: default;
+    }
+
+    /* Slots Section */
+    .slots-section {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    .slots-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+
+    .selected-date-text {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .timezone-badge {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: #f1f5f9;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+
+    .timing-badge-note {
+      font-size: 0.8rem;
+      color: #0369a1;
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      padding: 6px 10px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .slots-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+      gap: 10px;
+    }
+
+    .slot-btn {
+      padding: 10px 8px;
+      border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: #ffffff;
+      color: var(--text-main);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+    }
+
+    .slot-subtext {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .slot-btn:hover:not(:disabled) {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: #f8fafc;
+    }
+
+    .slot-btn.selected {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+      box-shadow: 0 2px 8px rgba(4, 31, 70, 0.25);
+    }
+
+    .slot-btn.selected .slot-subtext {
+      color: #cbd5e1;
+    }
+
+    .slot-btn:disabled, .slot-btn.booked {
+      background: #f1f5f9;
+      color: #94a3b8;
+      border-color: #e2e8f0;
+      cursor: not-allowed;
+      text-decoration: line-through;
+    }
+
+    .slot-btn.booked::after {
+      content: "Booked";
+      position: absolute;
+      bottom: -6px;
+      right: 4px;
+      font-size: 9px;
+      text-decoration: none;
+      background: #ef4444;
+      color: #fff;
+      padding: 1px 4px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+
+    /* Timing Change Contact Box */
+    .timing-notice-box {
+      margin-top: 18px;
+      background: #f8fafc;
+      border: 1.5px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 0.85rem;
+      color: #334155;
+    }
+
+    .timing-notice-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .timing-notice-box a.contact-link {
+      color: var(--primary);
+      font-weight: 700;
+      text-decoration: underline;
+    }
+
+    .timing-notice-box a.contact-link:hover {
+      color: var(--accent);
+    }
+
+    .quick-contact-pills {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .contact-pill {
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 20px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s;
+    }
+
+    .pill-wa {
+      background: #dcfce7;
+      color: #15803d;
+      border: 1px solid #86efac;
+    }
+
+    .pill-wa:hover {
+      background: #bbf7d0;
+    }
+
+    .pill-card {
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #7dd3fc;
+    }
+
+    .pill-card:hover {
+      background: #bae6fd;
+    }
+
+    /* Submit Button */
+    .submit-btn {
+      width: 100%;
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      padding: 15px 20px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      margin-top: 20px;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .submit-btn:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .submit-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Success / Error Message Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.65);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      padding: 20px;
       box-sizing: border-box;
     }
 
-    .terminal-controls {
-      float: right;
+    .modal-overlay.active {
+      display: flex;
     }
 
-    .control {
-      display: inline-block;
-      width: 0.6em;
-      height: 0.6em;
-      margin-left: 0.4em;
+    .modal-content {
+      background: #ffffff;
+      max-width: 540px;
+      width: 100%;
+      border-radius: 20px;
+      padding: 30px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+      animation: modalPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalPop {
+      from { transform: scale(0.9); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .modal-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 14px;
       border-radius: 50%;
-      background-color: #777;
+      background: #dcfce7;
+      color: #16a34a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
     }
 
-    .control.close {
-      background-color: #e33;
+    .meet-link-box {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 12px;
+      padding: 16px;
+      margin: 16px 0;
+      text-align: left;
     }
 
-    .control.minimize {
-      background-color: #ee0;
-    }
-
-    .control.maximize {
-      background-color: #0b0;
-    }
-
-    .terminal-title {
-      float: left;
-      line-height: 1.5em;
-      color: #eee;
-    }
-
-    .text {
+    .meet-btn {
       display: inline-block;
-      white-space: nowrap;
-      overflow: hidden;
-      border-right: 0.2em solid green;
-      /* Cursor */
-      animation: typeAndDelete 4s steps(11) infinite,
-        blinkCursor 0.5s step-end infinite alternate;
-      margin-top: 1.5em;
+      background: #1a73e8;
+      color: #ffffff !important;
+      padding: 10px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+
+    /* WhatsApp Instant Confirmation Box in Modal */
+    .whatsapp-confirmation-box {
+      background: #f0fdf4;
+      border: 1.5px solid #86efac;
+      border-radius: 12px;
+      padding: 16px;
+      margin: 16px 0;
+      text-align: left;
+    }
+
+    .whatsapp-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--whatsapp);
+      color: #ffffff !important;
+      padding: 12px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.95rem;
+      margin-top: 10px;
+      box-shadow: 0 3px 10px rgba(37, 211, 102, 0.3);
+    }
+
+    .whatsapp-btn:hover {
+      background: var(--whatsapp-hover);
+    }
+
+    .close-modal-btn {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+
+    .spinner {
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top: 3px solid #ffffff;
+      width: 20px;
+      height: 20px;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
-
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-      body {
-        background-image: url('img/bg.png');
-        background-repeat: no-repeat;
-        background-size: cover;
-      }
-    </style>
-
-    <link rel="stylesheet" href="styles.css">
-    <title>Book An Appointment</title>
-  </head>
+</head>
 
 <body>
-  <header>
-    <a href="https://gyromotionphysio.in"><img src="img/logo-png.png" alt="Logo" class="logo"
-        style="height: auto; max-width: 68%;"></a>
-  </header>
+  <!-- Header loaded dynamically by common.js -->
+  <div id="common-header"></div>
+  <script src="common.js?v=5"></script>
 
-  <nav>
-    <ul>
-      <li><a href="https://gyromotionphysio.in">Home</a></li>
-      <li><a href="about.html">About</a></li>
-      <li><a href="services.html">Services</a></li>
+  <div class="scheduler-container">
+    <div class="scheduler-header">
+      <h1>Book an Appointment</h1>
+      <p>Consult with Dr. Prajakta Joshi at Gyromotion Clinic or via Online Video Consultation</p>
+    </div>
 
-      <li><a href="appointment.html">Book an Appointment</a></li>
-    </ul>
-  </nav>
-  <div class="terminal-loader">
-    <div class="terminal-header">
-      <div class="terminal-title">Status</div>
-      <div class="terminal-controls">
-        <div class="control close"></div>
-        <div class="control minimize"></div>
-        <div class="control maximize"></div>
+    <!-- Mode Tabs -->
+    <div class="tab-container">
+      <button type="button" class="tab-btn active" id="tab-offline" onclick="switchTab('Offline')">
+        📍 Offline In Clinic
+      </button>
+      <button type="button" class="tab-btn" id="tab-online" onclick="switchTab('Online')">
+        💻 Online Video Meet
+      </button>
+    </div>
+
+    <!-- Booking Grid -->
+    <div class="booking-grid">
+      <!-- Left Column: Patient Form -->
+      <div class="card">
+        <form id="booking-form" onsubmit="handleBookingSubmit(event)">
+          <!-- Name Fields -->
+          <div class="form-group">
+            <label class="form-label">Patient Name *</label>
+            <div class="form-row">
+              <input type="text" id="firstName" name="firstName" class="form-control" placeholder="First Name" required>
+              <input type="text" id="lastName" name="lastName" class="form-control" placeholder="Last Name" required>
+            </div>
+          </div>
+
+          <!-- Phone Number with Auto +91 -->
+          <div class="form-group">
+            <label class="form-label" for="phone">Phone Number *</label>
+            <div class="phone-input-group">
+              <span class="phone-prefix">🇮🇳 +91</span>
+              <input 
+                type="tel" 
+                id="phone" 
+                name="phone" 
+                class="form-control phone-control" 
+                placeholder="Enter 10-digit mobile number" 
+                maxlength="14" 
+                required 
+                oninput="handlePhoneInput(this)"
+              >
+            </div>
+            <div class="form-hint" id="phone-hint">Country code +91 is added automatically. Just enter your 10-digit mobile number.</div>
+          </div>
+
+          <!-- Email -->
+          <div class="form-group">
+            <label class="form-label" for="email">Email Address *</label>
+            <input type="email" id="email" name="email" class="form-control" placeholder="example@example.com" required>
+            <div class="form-hint">Booking confirmation & calendar invite will be sent to this email.</div>
+          </div>
+
+          <!-- Online Specific: Type of appointment -->
+          <div class="form-group" id="online-type-group" style="display: none;">
+            <label class="form-label" for="appointmentType">Type of appointment *</label>
+            <select id="appointmentType" name="appointmentType" class="form-control">
+              <option value="General Consultation">General Physiotherapy Consultation</option>
+              <option value="Post-Surgery Rehab">Post-Surgery Rehabilitation Follow-up</option>
+              <option value="Spine & Joint Pain">Spine & Joint Pain Assessment</option>
+              <option value="Sports Injury">Sports Injury Guidance</option>
+              <option value="Investigation Report Review">Investigation Report Review</option>
+            </select>
+          </div>
+
+          <!-- Reason For Consultancy -->
+          <div class="form-group">
+            <label class="form-label" for="reason">Reason For Consultancy *</label>
+            <textarea id="reason" name="reason" class="form-control" placeholder="Briefly describe your symptoms, pain location, or condition..." required></textarea>
+          </div>
+
+          <!-- Online Specific: File Upload (Investigations) -->
+          <div class="form-group" id="online-files-group" style="display: none;">
+            <label class="form-label">Any investigations if done (X-ray, CT scan, MRI, Blood Test, USG)</label>
+            <div class="dropzone" id="dropzone">
+              <input type="file" id="fileInput" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onchange="handleFileSelect(this.files)">
+              <div class="dropzone-icon">📁</div>
+              <div style="font-weight: 600; color: var(--primary); margin-bottom: 4px;">Browse Files</div>
+              <div style="font-size: 0.85rem; color: var(--text-muted);">or drag and drop reports here (PDF, JPG, PNG)</div>
+            </div>
+            <div class="file-chip-container" id="fileList"></div>
+          </div>
+
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 15px;">
+            * Please choose your date and appointment time on the calendar.
+          </div>
+        </form>
+      </div>
+
+      <!-- Right Column: Calendar & Time Slots -->
+      <div class="calendar-card">
+        <div class="calendar-title-bar">
+          <div class="calendar-month-year" id="calMonthYear">August 2026</div>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="cal-nav-btn" onclick="changeMonth(-1)">&lt;</button>
+            <button type="button" class="cal-nav-btn" onclick="changeMonth(1)">&gt;</button>
+          </div>
+        </div>
+
+        <div class="calendar-weekdays">
+          <div>MON</div>
+          <div>TUE</div>
+          <div>WED</div>
+          <div>THU</div>
+          <div>FRI</div>
+          <div>SAT</div>
+          <div>SUN</div>
+        </div>
+
+        <div class="calendar-grid" id="calendarDays">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <!-- Slots Section -->
+        <div class="slots-section">
+          <div class="slots-header">
+            <div class="selected-date-text" id="selectedDateDisplay">Select a date</div>
+            <div class="timezone-badge" id="liveTimeBadge">Asia/Kolkata (IST)</div>
+          </div>
+
+          <!-- Session timing banner -->
+          <div class="timing-badge-note">
+            <span>⏱️</span>
+            <span><strong>Consultation Hours:</strong> 5:00 PM to 7:30 PM</span>
+          </div>
+
+          <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-bottom: 10px;">
+            Appointment time
+          </div>
+          <div class="slots-grid" id="slotsGrid">
+            <!-- Rendered dynamically -->
+          </div>
+
+          <!-- Timing Change Contact Notice -->
+          <div class="timing-notice-box">
+            <div class="timing-notice-header">
+              <span>📅</span>
+              <span>Need a timing change or custom appointment?</span>
+            </div>
+            <div>
+              If the available slots don't suit your schedule or you need an urgent consultation, please 
+              <a href="about.html#contact-section" class="contact-link">Contact Us</a>.
+            </div>
+            <div class="quick-contact-pills">
+              <a href="https://api.whatsapp.com/send?phone=919518554022&text=Hi%20Dr.%20Prajakta,%20I%20would%20like%20to%20request%20a%20timing%20change%20for%20an%20appointment" target="_blank" class="contact-pill pill-wa">
+                💬 WhatsApp Us
+              </a>
+              <a href="about.html#contact-section" class="contact-pill pill-card">
+                📍 Contact & Map Card
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <button type="button" class="submit-btn" id="submitBtn" onclick="triggerSubmit()">
+          <span id="submitBtnText">Submit Appointment</span>
+          <span id="submitSpinner" class="spinner" style="display: none;"></span>
+        </button>
       </div>
     </div>
-    <div class="text">Loading...</div>
-    <div>This site Is Under Maintainence</div>
   </div>
+
+  <!-- Success / Details Modal -->
+  <div class="modal-overlay" id="successModal">
+    <div class="modal-content">
+      <div class="modal-icon">✓</div>
+      <h2 style="color: var(--primary); margin: 0 0 10px;">Appointment Confirmed!</h2>
+      <p id="modalMessage" style="color: var(--text-muted); margin-bottom: 15px; font-size: 0.95rem;"></p>
+
+      <!-- WhatsApp Confirmation Card -->
+      <div class="whatsapp-confirmation-box" id="modalWhatsappBox">
+        <strong style="color: #15803d; display: flex; align-items: center; gap: 6px;">
+          <span>📲</span> Instant WhatsApp Confirmation
+        </strong>
+        <p style="margin: 6px 0 0; font-size: 0.85rem; color: #374151;">
+          Connect directly with Dr. Prajakta Joshi on WhatsApp to receive updates & ask any pre-visit questions:
+        </p>
+        <a href="#" target="_blank" id="modalWhatsappBtn" class="whatsapp-btn">
+          💬 Open WhatsApp Confirmation
+        </a>
+      </div>
+
+      <div id="onlineMeetContainer" style="display: none;">
+        <div class="meet-link-box">
+          <strong style="color: #1e3a8a; display: block; margin-bottom: 4px;">📹 Google Meet Video Consultation</strong>
+          <p style="margin: 0; font-size: 0.85rem; color: #475569;">
+            Your video meeting has been created. A calendar invite and joining details have been emailed to you.
+          </p>
+          <a href="#" target="_blank" id="modalMeetBtn" class="meet-btn">Join Google Meet</a>
+        </div>
+      </div>
+
+      <div id="offlineAddressContainer" style="display: none; background: #f8fafc; border-radius: 10px; padding: 12px; margin: 15px 0; font-size: 0.9rem; color: #334155; text-align: left;">
+        <strong>📍 Clinic Location:</strong><br>
+        Plot Number 1, Shree Siddhivinayak society, Near Pawar Hospital, front Of Lotus Computers, Vatan Nagar, Talegaon Dabhade, Pune 410507<br>
+        <span style="font-size: 0.8rem; color: #64748b;">Please arrive 5-10 minutes prior to your scheduled session.</span>
+      </div>
+
+      <button type="button" class="close-modal-btn" onclick="closeModalAndReload()">Done</button>
+    </div>
+  </div>
+
+  <!-- Footer loaded dynamically by common.js -->
+  <div id="common-footer"></div>
+
+  <script>
+    // State
+    let currentMode = 'Offline'; // 'Offline' | 'Online'
+    let currentDate = new Date();
+    let selectedDate = new Date();
+    // If today is Sunday, default to next day (Monday)
+    if (selectedDate.getDay() === 0) {
+      selectedDate.setDate(selectedDate.getDate() + 1);
+    }
+    let selectedTime = null;
+    let bookedSlots = [];
+    let uploadedFiles = [];
+
+    // Consultation slots from 5:00 PM to 7:30 PM
+    const CLINIC_SLOTS = [
+      { time: '17:00', label: '5:00 PM' },
+      { time: '17:30', label: '5:30 PM' },
+      { time: '18:00', label: '6:00 PM' },
+      { time: '18:30', label: '6:30 PM' },
+      { time: '19:00', label: '7:00 PM' },
+      { time: '19:30', label: '7:30 PM' }
+    ];
+
+    // API URL: dynamically detect port or use relative path
+    const API_BASE_URL = window.location.origin.includes('localhost') 
+      ? window.location.origin 
+      : 'http://localhost:5001';
+
+    const CLINIC_WHATSAPP_NUMBER = '919518554022';
+
+    // Auto +91 Phone Input Handler
+    function handlePhoneInput(input) {
+      let val = input.value;
+      // Strip any non-digits
+      let digits = val.replace(/\D/g, '');
+
+      // If user pasted with 91 or +91 at start, strip the 91 prefix so only 10 digits remain
+      if (digits.startsWith('91') && digits.length > 10) {
+        digits = digits.substring(2);
+      } else if (digits.startsWith('0') && digits.length > 10) {
+        digits = digits.substring(1);
+      }
+
+      // Limit to 10 digits
+      if (digits.length > 10) {
+        digits = digits.substring(0, 10);
+      }
+
+      // Format as "XXXXX XXXXX" for easy reading
+      if (digits.length > 5) {
+        input.value = `${digits.substring(0, 5)} ${digits.substring(5)}`;
+      } else {
+        input.value = digits;
+      }
+    }
+
+    function getNormalizedPhoneNumber() {
+      const input = document.getElementById('phone');
+      const digits = input.value.replace(/\D/g, '');
+      return `+91${digits}`;
+    }
+
+    // Initialize Page
+    document.addEventListener('DOMContentLoaded', () => {
+      renderCalendar();
+      updateSelectedDateDisplay();
+      fetchBookedSlotsAndRender();
+      updateClockBadge();
+      setInterval(updateClockBadge, 60000);
+    });
+
+    function updateClockBadge() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+      const badge = document.getElementById('liveTimeBadge');
+      if (badge) badge.innerText = `Asia/Kolkata (${timeStr})`;
+    }
+
+    // Switch between Offline and Online
+    function switchTab(mode) {
+      currentMode = mode;
+      selectedTime = null;
+
+      document.getElementById('tab-offline').classList.toggle('active', mode === 'Offline');
+      document.getElementById('tab-online').classList.toggle('active', mode === 'Online');
+
+      const onlineTypeGroup = document.getElementById('online-type-group');
+      const onlineFilesGroup = document.getElementById('online-files-group');
+
+      if (mode === 'Online') {
+        onlineTypeGroup.style.display = 'block';
+        onlineFilesGroup.style.display = 'block';
+      } else {
+        onlineTypeGroup.style.display = 'none';
+        onlineFilesGroup.style.display = 'none';
+      }
+
+      renderSlots();
+    }
+
+    // Calendar Navigation
+    function changeMonth(delta) {
+      currentDate.setMonth(currentDate.getMonth() + delta);
+      renderCalendar();
+    }
+
+    function renderCalendar() {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+      document.getElementById('calMonthYear').innerText = `${monthNames[month]} ${year}`;
+
+      const grid = document.getElementById('calendarDays');
+      grid.innerHTML = '';
+
+      const firstDay = new Date(year, month, 1);
+      let startDay = firstDay.getDay() - 1;
+      if (startDay === -1) startDay = 6;
+
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      for (let i = 0; i < startDay; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'cal-day empty';
+        grid.appendChild(empty);
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dayDate = new Date(year, month, day);
+        dayDate.setHours(0, 0, 0, 0);
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'cal-day';
+        btn.innerText = day;
+
+        const isPast = dayDate < today;
+        const isSunday = dayDate.getDay() === 0;
+        const isSelected = selectedDate &&
+          dayDate.getFullYear() === selectedDate.getFullYear() &&
+          dayDate.getMonth() === selectedDate.getMonth() &&
+          dayDate.getDate() === selectedDate.getDate();
+
+        const isToday = dayDate.getTime() === today.getTime();
+
+        if (isToday) btn.classList.add('today');
+        if (isSelected) btn.classList.add('selected');
+
+        if (isSunday) {
+          btn.classList.add('sunday');
+          btn.disabled = true;
+          btn.title = 'Clinic is closed on Sundays';
+        } else if (isPast) {
+          btn.disabled = true;
+        } else {
+          btn.onclick = () => selectDate(dayDate);
+        }
+
+        grid.appendChild(btn);
+      }
+    }
+
+    function selectDate(date) {
+      if (date.getDay() === 0) return; // Sundays are closed
+      selectedDate = date;
+      selectedTime = null;
+      renderCalendar();
+      updateSelectedDateDisplay();
+      fetchBookedSlotsAndRender();
+    }
+
+    function updateSelectedDateDisplay() {
+      const options = { weekday: 'long', month: 'long', day: 'numeric' };
+      document.getElementById('selectedDateDisplay').innerText = selectedDate.toLocaleDateString('en-US', options);
+    }
+
+    function formatDateForApi(d) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // Fetch Booked Slots from Backend API
+    async function fetchBookedSlotsAndRender() {
+      const dateStr = formatDateForApi(selectedDate);
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/appointments?date=${dateStr}`);
+        if (res.ok) {
+          const data = await res.json();
+          bookedSlots = data.bookedSlots || [];
+        } else {
+          bookedSlots = [];
+        }
+      } catch (err) {
+        console.warn('Could not connect to appointment API server:', err);
+        bookedSlots = [];
+      }
+      renderSlots();
+    }
+
+    // Render 5:00 PM to 7:30 PM Slots
+    function renderSlots() {
+      const grid = document.getElementById('slotsGrid');
+      grid.innerHTML = '';
+
+      if (selectedDate && selectedDate.getDay() === 0) {
+        grid.innerHTML = `
+          <div style="grid-column: 1 / -1; background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 12px; padding: 16px; text-align: center; color: #991b1b;">
+            <div style="font-size: 1.3rem; margin-bottom: 4px;">🛑</div>
+            <strong style="display: block; font-size: 0.95rem; margin-bottom: 4px;">Clinic Closed on Sundays</strong>
+            <p style="margin: 0; font-size: 0.82rem; color: #7f1d1d;">
+              Dr. Prajakta Joshi is available from Monday to Saturday (5:00 PM to 7:30 PM). Please select any Monday – Saturday date on the calendar.
+            </p>
+          </div>
+        `;
+        return;
+      }
+
+      CLINIC_SLOTS.forEach(slot => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'slot-btn';
+
+        const isBooked = bookedSlots.includes(slot.time);
+        
+        btn.innerHTML = `
+          <span>${slot.time}</span>
+          <span class="slot-subtext">${slot.label}</span>
+        `;
+
+        if (isBooked) {
+          btn.disabled = true;
+          btn.classList.add('booked');
+          btn.title = 'This slot has already been booked by another patient';
+        } else {
+          if (selectedTime === slot.time) {
+            btn.classList.add('selected');
+          }
+          btn.onclick = () => selectSlot(slot.time);
+        }
+
+        grid.appendChild(btn);
+      });
+    }
+
+    function selectSlot(time) {
+      selectedTime = time;
+      renderSlots();
+    }
+
+    // File Handling
+    function handleFileSelect(files) {
+      for (let i = 0; i < files.length; i++) {
+        uploadedFiles.push(files[i]);
+      }
+      renderFileList();
+    }
+
+    function removeFile(index) {
+      uploadedFiles.splice(index, 1);
+      renderFileList();
+    }
+
+    function renderFileList() {
+      const container = document.getElementById('fileList');
+      container.innerHTML = '';
+      uploadedFiles.forEach((f, idx) => {
+        const chip = document.createElement('div');
+        chip.className = 'file-chip';
+        chip.innerHTML = `📄 ${f.name} <span class="remove-file" onclick="removeFile(${idx})">&times;</span>`;
+        container.appendChild(chip);
+      });
+    }
+
+    // Form Submission
+    function triggerSubmit() {
+      const form = document.getElementById('booking-form');
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
+
+      // Check phone digits (must be 10 digits)
+      const phoneDigits = document.getElementById('phone').value.replace(/\D/g, '');
+      if (phoneDigits.length !== 10) {
+        alert('Please enter a valid 10-digit mobile number.');
+        document.getElementById('phone').focus();
+        return;
+      }
+
+      if (!selectedTime) {
+        alert('Please choose an available appointment time slot on the calendar.');
+        return;
+      }
+
+      form.requestSubmit();
+    }
+
+    async function handleBookingSubmit(event) {
+      event.preventDefault();
+
+      const submitBtn = document.getElementById('submitBtn');
+      const submitText = document.getElementById('submitBtnText');
+      const spinner = document.getElementById('submitSpinner');
+
+      submitBtn.disabled = true;
+      submitText.innerText = currentMode === 'Online' 
+        ? 'Creating Calendar & Google Meet...' 
+        : 'Scheduling & Syncing Calendar...';
+      spinner.style.display = 'inline-block';
+
+      try {
+        const formData = new FormData();
+        const fullPhone = getNormalizedPhoneNumber();
+
+        formData.append('firstName', document.getElementById('firstName').value.trim());
+        formData.append('lastName', document.getElementById('lastName').value.trim());
+        formData.append('email', document.getElementById('email').value.trim());
+        formData.append('phone', fullPhone);
+        formData.append('reason', document.getElementById('reason').value.trim());
+        formData.append('mode', currentMode);
+        formData.append('date', formatDateForApi(selectedDate));
+        formData.append('time', selectedTime);
+
+        if (currentMode === 'Online') {
+          formData.append('appointmentType', document.getElementById('appointmentType').value);
+          uploadedFiles.forEach(file => {
+            formData.append('files', file);
+          });
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/book-appointment`, {
+          method: 'POST',
+          body: formData
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          showSuccessModal(result);
+        } else {
+          alert(result.error || 'Failed to book appointment. Please try again.');
+        }
+      } catch (error) {
+        console.error('Submission error:', error);
+        alert('Could not connect to the appointment server. Please ensure the backend server is running on port 5001.');
+      } finally {
+        submitBtn.disabled = false;
+        submitText.innerText = 'Submit Appointment';
+        spinner.style.display = 'none';
+      }
+    }
+
+    function showSuccessModal(data) {
+      const modal = document.getElementById('successModal');
+      const msg = document.getElementById('modalMessage');
+      const meetContainer = document.getElementById('onlineMeetContainer');
+      const offlineContainer = document.getElementById('offlineAddressContainer');
+      const whatsappBtn = document.getElementById('modalWhatsappBtn');
+
+      const patientName = `${document.getElementById('firstName').value.trim()} ${document.getElementById('lastName').value.trim()}`;
+      const patientPhone = getNormalizedPhoneNumber();
+      const dateStr = selectedDate.toLocaleDateString('en-IN', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+
+      msg.innerHTML = `Your ${currentMode === 'Online' ? 'Online Consultation' : 'In-Clinic Appointment'} with Dr. Prajakta Joshi has been scheduled for <strong>${dateStr} at ${selectedTime} IST</strong>.<br><br><span style="font-size: 0.82rem; color: #64748b; background: #f1f5f9; padding: 6px 10px; border-radius: 6px; display: inline-block;">🤖 <em>Note: This is a system-generated automated confirmation. An email has been dispatched to ${document.getElementById('email').value}.</em></span>`;
+
+      // Build pre-filled WhatsApp confirmation link to the clinic
+      const reasonVal = document.getElementById('reason').value.trim();
+      let waMessage = `Hello Dr. Prajakta, my appointment is confirmed for ${dateStr} at ${selectedTime} (${currentMode === 'Online' ? 'Online Video Meet' : 'In Clinic'}).\nPatient: ${patientName}\nPhone: ${patientPhone}`;
+      if (reasonVal) {
+        waMessage += `\nReason: ${reasonVal}`;
+      }
+      if (currentMode === 'Online' && data.meetLink) {
+        waMessage += `\nMeeting Link: ${data.meetLink}`;
+      }
+      waMessage += `\n\n(System-generated automated confirmation)`;
+      const waUrl = `https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP_NUMBER}&text=${encodeURIComponent(waMessage)}`;
+      whatsappBtn.href = waUrl;
+
+      if (currentMode === 'Online' && data.meetLink) {
+        meetContainer.style.display = 'block';
+        offlineContainer.style.display = 'none';
+        const meetBtn = document.getElementById('modalMeetBtn');
+        meetBtn.href = data.meetLink;
+      } else {
+        meetContainer.style.display = 'none';
+        offlineContainer.style.display = 'block';
+      }
+
+      modal.classList.add('active');
+    }
+
+    function closeModalAndReload() {
+      document.getElementById('successModal').classList.remove('active');
+      window.location.reload();
+    }
+  </script>
 </body>
 
 </html>

@@ -1,0 +1,8 @@
+node_modules/
+.env
+.env.local
+service-account.json
+server/service-account.json
+server/.env
+uploads/
+.DS_Store

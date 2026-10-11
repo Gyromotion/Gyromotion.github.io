@@ -47,29 +47,35 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 } // 25MB max
 });
 
-// Load Google Service Account
+// Load Google Service Account helper
 let serviceAccount = null;
 
-// 1. Check environment variable (stringified JSON)
-if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-  try {
-    let raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON.trim();
-    if ((raw.startsWith("'") && raw.endsWith("'")) || (raw.startsWith('"') && raw.endsWith('"'))) {
-      raw = raw.slice(1, -1);
-    }
-    serviceAccount = JSON.parse(raw);
-    console.log('✓ Loaded service account from GOOGLE_SERVICE_ACCOUNT_JSON environment variable');
-  } catch (err) {
-    console.error('Error parsing GOOGLE_SERVICE_ACCOUNT_JSON env var:', err.message);
-  }
-}
+function loadServiceAccount() {
+  if (serviceAccount) return serviceAccount;
 
-// 2. Check candidate file paths
-if (!serviceAccount) {
+  // 1. Check environment variable (stringified JSON)
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    try {
+      let raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON.trim();
+      if ((raw.startsWith("'") && raw.endsWith("'")) || (raw.startsWith('"') && raw.endsWith('"'))) {
+        raw = raw.slice(1, -1);
+      }
+      serviceAccount = JSON.parse(raw);
+      if (serviceAccount.private_key) {
+        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      }
+      console.log('✓ Loaded service account from GOOGLE_SERVICE_ACCOUNT_JSON environment variable');
+      return serviceAccount;
+    } catch (err) {
+      console.error('Error parsing GOOGLE_SERVICE_ACCOUNT_JSON env var:', err.message);
+    }
+  }
+
+  // 2. Check candidate file paths
   const candidatePaths = [
     path.resolve(__dirname, 'service-account.json'),
     path.resolve(__dirname, '../service-account.json'),
-    '/etc/secrets/service-account.json', // Render secret file default
+    '/etc/secrets/service-account.json', // Render secret file default mount path
     '/opt/render/project/src/service-account.json',
     '/opt/render/project/src/server/service-account.json',
     process.env.GOOGLE_SERVICE_ACCOUNT_KEY
@@ -79,25 +85,30 @@ if (!serviceAccount) {
     if (fs.existsSync(p)) {
       try {
         serviceAccount = JSON.parse(fs.readFileSync(p, 'utf8'));
+        if (serviceAccount.private_key) {
+          serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+        }
         console.log('✓ Loaded service account from file:', p);
-        break;
+        return serviceAccount;
       } catch (e) {
         console.error('Failed reading service account from', p, e.message);
       }
     }
   }
 
-  if (!serviceAccount) {
-    console.warn('Warning: Google Service Account not found. Checked paths:', candidatePaths);
-  }
+  return null;
 }
+
+// Initial attempt to load service account
+loadServiceAccount();
 
 // Health & Status check endpoint
 app.get('/api/status', (req, res) => {
+  const sa = loadServiceAccount();
   res.json({
     status: 'ok',
-    calendarConfigured: !!serviceAccount,
-    serviceAccountEmail: serviceAccount ? serviceAccount.client_email : null,
+    calendarConfigured: !!sa,
+    serviceAccountEmail: sa ? sa.client_email : null,
     calendarId: CALENDAR_ID,
     emailConfigured: !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD)
   });
@@ -105,10 +116,11 @@ app.get('/api/status', (req, res) => {
 
 // Google Calendar API client
 function getCalendarClient() {
-  if (!serviceAccount) return null;
+  const sa = loadServiceAccount();
+  if (!sa) return null;
   const auth = new google.auth.JWT({
-    email: serviceAccount.client_email,
-    key: serviceAccount.private_key,
+    email: sa.client_email,
+    key: sa.private_key,
     scopes: ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/calendar.events']
   });
   return google.calendar({ version: 'v3', auth });
@@ -239,249 +251,10 @@ app.post('/api/book-appointment', upload.array('files', 5), async (req, res) => 
     const endTime = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`;
     const isoEndDateTime = `${date}T${endTime}:00+05:30`;
 
-    const calendar = getCalendarClient();
-    if (!calendar) {
-      return res.status(500).json({ error: 'Google Calendar integration not configured.' });
-    }
+    // Determine Meet Link (only if Online, accept client-generated or generate fresh)
+    const meetLink = isOnline ? (req.body.meetLink || generateMeetLink()) : null;
 
-    // 1. Verify slot is not already booked in Google Calendar
-    const startOfDay = new Date(`${date}T00:00:00+05:30`).toISOString();
-    const endOfDay = new Date(`${date}T23:59:59+05:30`).toISOString();
-    const existingEvents = await calendar.events.list({
-      calendarId: CALENDAR_ID,
-      timeMin: startOfDay,
-      timeMax: endOfDay,
-      singleEvents: true
-    });
-
-    const isAlreadyBooked = (existingEvents.data.items || []).some(evt => {
-      if (evt.status !== 'cancelled' && evt.start?.dateTime) {
-        const d = new Date(evt.start.dateTime);
-        const slot = d.toLocaleTimeString('en-IN', {
-          timeZone: 'Asia/Kolkata',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
-        });
-        return slot === time;
-      }
-      return false;
-    });
-
-    if (isAlreadyBooked) {
-      return res.status(409).json({
-        error: `The slot ${time} on ${date} has already been reserved. Please pick another time.`
-      });
-    }
-
-    // 2. Determine Meet Link (only if Online)
-    const meetLink = isOnline ? generateMeetLink() : null;
-
-    // 3. Create Google Calendar Event
-    const uploadedFilesList = req.files && req.files.length > 0
-      ? req.files.map(f => f.originalname).join(', ')
-      : 'None';
-
-    const eventSummary = isOnline
-      ? `[Online Video Consultation] ${patientName}`
-      : `[In-Clinic] ${patientName}`;
-
-    const description = [
-      `Patient Name: ${patientName}`,
-      `Phone: ${cleanPhone}`,
-      `Email: ${email}`,
-      `Mode: ${isOnline ? `Online Meet (${appointmentType || 'General Consultation'})` : 'Offline In Clinic'}`,
-      `Reason for Consultancy: ${reason || 'N/A'}`,
-      `Attached Reports: ${uploadedFilesList}`,
-      isOnline ? `Google Meet Link: ${meetLink}` : `Location: ${CLINIC_ADDRESS}`,
-      `Doctor: Dr. Prajakta Joshi`,
-      `Contact: Available on WhatsApp`
-    ].join('\n');
-
-    const eventPayload = {
-      summary: eventSummary,
-      description,
-      location: isOnline ? meetLink : CLINIC_ADDRESS,
-      start: { dateTime: isoDateTime, timeZone: 'Asia/Kolkata' },
-      end: { dateTime: isoEndDateTime, timeZone: 'Asia/Kolkata' }
-    };
-
-    const calInsertRes = await calendar.events.insert({
-      calendarId: CALENDAR_ID,
-      resource: eventPayload
-    });
-    console.log('Google Calendar event created:', calInsertRes.data.id, calInsertRes.data.summary);
-
-    // 4. Send Confirmation Emails via Gmail SMTP
-    const transporter = getEmailTransporter();
-    if (transporter) {
-      const formattedDate = new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-
-      // Generate "Add to Google Calendar" link for patient
-      const startIso = new Date(`${date}T${time}:00+05:30`);
-      const endIso = new Date(`${date}T${endTime}:00+05:30`);
-      const formatGCalDate = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-      const gcalDates = `${formatGCalDate(startIso)}/${formatGCalDate(endIso)}`;
-      const gcalTitle = encodeURIComponent(`Consultation with Dr. Prajakta Joshi (Gyromotion)`);
-      const gcalDetails = encodeURIComponent(
-        `Doctor: Dr. Prajakta Joshi (Gyromotion Physiotherapy Clinic)\nMode: ${isOnline ? 'Online Video Meet' : 'In Clinic'}\n${isOnline && meetLink ? `Google Meet Link: ${meetLink}\n` : ''}${!isOnline ? `Address: ${CLINIC_ADDRESS}\n` : ''}WhatsApp: Connect with Dr. Prajakta on WhatsApp`
-      );
-      const gcalLocation = encodeURIComponent(isOnline ? (meetLink || 'Google Meet') : CLINIC_ADDRESS);
-      const addToGoogleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${gcalTitle}&dates=${gcalDates}&details=${gcalDetails}&location=${gcalLocation}`;
-
-      // Email HTML for Patient
-      const patientEmailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; background: #ffffff;">
-          <div style="background-color: #041f46; color: #ffffff; padding: 26px 20px; text-align: center;">
-            <h1 style="margin: 0; font-size: 22px; letter-spacing: 0.5px;">Gyromotion Physiotherapy Clinic</h1>
-            <p style="margin: 6px 0 0; font-size: 14px; opacity: 0.9;">Dr. Prajakta Joshi | Appointment Confirmation</p>
-          </div>
-          
-          <div style="padding: 28px 24px; color: #1e293b;">
-            <h2 style="color: #041f46; margin-top: 0; font-size: 20px;">Hello ${patientName},</h2>
-            <p style="font-size: 15px; line-height: 1.5; color: #475569;">
-              Your appointment has been successfully confirmed. Below are your consultation details:
-            </p>
-
-            <div style="background-color: #f8fafc; border-left: 4px solid #041f46; padding: 16px 20px; margin: 20px 0; border-radius: 6px;">
-              <p style="margin: 6px 0;"><strong>Date:</strong> ${formattedDate}</p>
-              <p style="margin: 6px 0;"><strong>Time:</strong> ${time} IST</p>
-              <p style="margin: 6px 0;"><strong>Consultation Mode:</strong> ${isOnline ? 'Online Video Meet' : 'Offline In Clinic'}</p>
-              ${isOnline && appointmentType ? `<p style="margin: 6px 0;"><strong>Type:</strong> ${appointmentType}</p>` : ''}
-              ${!isOnline ? `<p style="margin: 6px 0;"><strong>Clinic Address:</strong> ${CLINIC_ADDRESS}</p>` : ''}
-            </div>
-
-            <!-- Add to Google Calendar Button -->
-            <div style="text-align: center; margin: 22px 0;">
-              <a href="${addToGoogleCalendarUrl}" target="_blank" style="display: inline-block; background-color: #041f46; color: #ffffff !important; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; box-shadow: 0 2px 8px rgba(4,31,70,0.2);">
-                📅 Add to Google Calendar
-              </a>
-            </div>
-
-            ${isOnline ? `
-              <div style="background-color: #eff6ff; border: 1.5px solid #bfdbfe; padding: 20px; border-radius: 12px; text-align: center; margin: 24px 0;">
-                <h3 style="margin: 0 0 6px; color: #1d4ed8; font-size: 18px;">📹 Google Meet Video Call</h3>
-                <p style="margin: 0 0 16px; font-size: 14px; color: #475569;">
-                  Please join using the link below at your appointment time:
-                </p>
-                <a href="${meetLink}" target="_blank" style="display: inline-block; background-color: #1a73e8; color: #ffffff !important; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 15px;">
-                  Join Google Meet Call
-                </a>
-                <p style="margin: 12px 0 0; font-size: 12px; color: #64748b;">
-                  Meeting Link: <a href="${meetLink}" style="color: #1a73e8;">${meetLink}</a>
-                </p>
-              </div>
-            ` : `
-              <div style="background-color: #f1f5f9; padding: 16px; border-radius: 8px; margin: 20px 0; font-size: 14px; color: #475569;">
-                <strong>📍 Clinic Visit Instructions:</strong><br>
-                Please arrive 5-10 minutes prior to your slot. If you have any previous MRI, X-Ray, or prescriptions, please bring them along.
-              </div>
-            `}
-
-            <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 14px 18px; border-radius: 8px; margin: 20px 0; font-size: 13px; color: #166534;">
-              <strong>💬 Need to change timing or reschedule?</strong><br>
-              Connect with Dr. Prajakta on <a href="https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}&text=Hi%20Dr.%20Prajakta,%20I%20have%20an%20appointment%20booked%20for%20${date}%20at%20${time}%20and%20need%20to%20change%20the%20timing" style="color: #166534; font-weight: bold;">WhatsApp</a> or visit our <a href="https://gyromotionphysio.in/about.html#contact-section" style="color: #166534; font-weight: bold;">Contact Page</a>.
-            </div>
-
-            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #64748b;">
-              <p style="margin: 4px 0;"><strong>Doctor:</strong> Dr. Prajakta Joshi</p>
-              <p style="margin: 4px 0;"><strong>Contact / WhatsApp:</strong> <a href="https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}&text=Hi%20Dr.%20Prajakta" style="color: #166534; font-weight: bold;">Chat on WhatsApp</a></p>
-              <p style="margin: 4px 0;"><strong>Email:</strong> <a href="mailto:${DOCTOR_EMAIL}" style="color: #041f46;">${DOCTOR_EMAIL}</a></p>
-            </div>
-
-            <!-- System-Generated Notice -->
-            <div style="margin-top: 20px; padding: 12px 14px; background-color: #f1f5f9; border-radius: 8px; font-size: 12px; color: #64748b; text-align: center; border: 1px dashed #cbd5e1;">
-              🤖 <em>Please Note: This is an automated, system-generated confirmation email. Replies to this email address are not monitored.</em><br>
-              To reschedule or connect with the doctor, please use the WhatsApp link above.
-            </div>
-          </div>
-
-          <div style="background-color: #f8fafc; padding: 12px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-            &copy; ${new Date().getFullYear()} Gyromotion Physiotherapy Clinic. All rights reserved.
-          </div>
-        </div>
-      `;
-
-      // Email options for Patient
-      const mailOptionsPatient = {
-        from: `"Gyromotion Physiotherapy Clinic" <${process.env.GMAIL_USER}>`,
-        to: email,
-        subject: `Appointment Confirmed: ${patientName} - ${isOnline ? 'Online Video Meet' : 'In Clinic'} (${date} at ${time})`,
-        html: patientEmailHtml
-      };
-
-      // Email options for Clinic Notification
-      const attachments = req.files ? req.files.map(f => ({ filename: f.originalname, path: f.path })) : [];
-      const clinicEmailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; color: #1e293b;">
-          <h2 style="color: #041f46;">New Patient Appointment Booked</h2>
-          <p>A new appointment has been scheduled through the website:</p>
-          <ul style="line-height: 1.8;">
-            <li><strong>Patient:</strong> ${patientName}</li>
-            <li><strong>Phone:</strong> ${cleanPhone}</li>
-            <li><strong>Email:</strong> ${email}</li>
-            <li><strong>Mode:</strong> ${isOnline ? 'Online Video Consultation' : 'Offline In Clinic'}</li>
-            <li><strong>Date & Time:</strong> ${date} at ${time} IST</li>
-            <li><strong>Reason:</strong> ${reason || 'Not specified'}</li>
-            ${isOnline && meetLink ? `<li><strong>Google Meet Link:</strong> <a href="${meetLink}">${meetLink}</a></li>` : ''}
-          </ul>
-          ${attachments.length > 0 ? `<p><strong>Attached Investigations:</strong> ${attachments.map(a => a.filename).join(', ')}</p>` : ''}
-          <div style="margin-top: 24px; padding: 10px 14px; background-color: #f1f5f9; border-radius: 6px; font-size: 12px; color: #64748b; border: 1px dashed #cbd5e1;">
-            🤖 <em>Note: This is an automated, system-generated notification sent by Gyromotion Appointment Scheduler.</em>
-          </div>
-        </div>
-      `;
-
-      const mailOptionsClinic = {
-        from: `"Website Appointment System" <${process.env.GMAIL_USER}>`,
-        to: DOCTOR_EMAIL,
-        subject: `[New Appointment] ${patientName} - ${isOnline ? 'ONLINE MEET' : 'IN CLINIC'} on ${date} at ${time}`,
-        html: clinicEmailHtml,
-        attachments
-      };
-
-      try {
-        await Promise.all([
-          transporter.sendMail(mailOptionsPatient),
-          transporter.sendMail(mailOptionsClinic)
-        ]);
-        console.log('Confirmation emails sent to patient and clinic.');
-      } catch (mailErr) {
-        console.error('Error sending confirmation email:', mailErr.message);
-      }
-    }
-
-    // 5. Trigger Automated SMS / WhatsApp Webhook (if configured)
-    if (MAKE_WEBHOOK_URL) {
-      try {
-        fetch(MAKE_WEBHOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            event: 'appointment_booked',
-            patientName,
-            phone: cleanPhone,
-            email,
-            date,
-            time,
-            mode: isOnline ? 'Online' : 'Offline',
-            appointmentType: isOnline ? (appointmentType || 'General Consultation') : 'In-Clinic',
-            reason,
-            meetLink: meetLink || '',
-            clinicWhatsapp: CLINIC_WHATSAPP
-          })
-        }).then(res => console.log('Automated SMS/WhatsApp Webhook fired. Response:', res.status))
-          .catch(err => console.warn('Webhook delivery notice:', err.message));
-      } catch (webhookErr) {
-        console.warn('Webhook trigger error:', webhookErr.message);
-      }
-    }
-
+    // Send FAST INSTANT RESPONSE to user right away!
     res.json({
       success: true,
       message: 'Appointment booked successfully!',
@@ -496,9 +269,233 @@ app.post('/api/book-appointment', upload.array('files', 5), async (req, res) => 
       meetLink,
       clinicWhatsapp: CLINIC_WHATSAPP
     });
+
+    // -------------------------------------------------------------
+    // RUN HEAVY TASKS IN BACKGROUND (Calendar Sync, Emails, Webhook)
+    // -------------------------------------------------------------
+    setImmediate(async () => {
+      // 1. Google Calendar Event
+      try {
+        const calendar = getCalendarClient();
+        if (calendar) {
+          const uploadedFilesList = req.files && req.files.length > 0
+            ? req.files.map(f => f.originalname).join(', ')
+            : 'None';
+
+          const eventSummary = isOnline
+            ? `[Online Video Consultation] ${patientName}`
+            : `[In-Clinic] ${patientName}`;
+
+          const description = [
+            `Patient Name: ${patientName}`,
+            `Phone: ${cleanPhone}`,
+            `Email: ${email}`,
+            `Mode: ${isOnline ? `Online Meet (${appointmentType || 'General Consultation'})` : 'Offline In Clinic'}`,
+            `Reason for Consultancy: ${reason || 'N/A'}`,
+            `Attached Reports: ${uploadedFilesList}`,
+            isOnline ? `Google Meet Link: ${meetLink}` : `Location: ${CLINIC_ADDRESS}`,
+            `Doctor: Dr. Prajakta Joshi`,
+            `Contact: Available on WhatsApp`
+          ].join('\n');
+
+          const eventPayload = {
+            summary: eventSummary,
+            description,
+            location: isOnline ? meetLink : CLINIC_ADDRESS,
+            start: { dateTime: isoDateTime, timeZone: 'Asia/Kolkata' },
+            end: { dateTime: isoEndDateTime, timeZone: 'Asia/Kolkata' }
+          };
+
+          const calInsertRes = await calendar.events.insert({
+            calendarId: CALENDAR_ID,
+            resource: eventPayload
+          });
+          console.log('✓ Google Calendar event created:', calInsertRes.data.id, calInsertRes.data.summary);
+        } else {
+          console.warn('⚠️ Google Calendar not configured. Skipped Google Calendar event creation.');
+        }
+      } catch (calErr) {
+        console.error('Error inserting Google Calendar event:', calErr.message);
+      }
+
+      // 2. Send Confirmation Emails via Gmail SMTP
+      try {
+        const transporter = getEmailTransporter();
+        if (transporter) {
+          const formattedDate = new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+
+          // Generate "Add to Google Calendar" link for patient
+          const startIso = new Date(`${date}T${time}:00+05:30`);
+          const endIso = new Date(`${date}T${endTime}:00+05:30`);
+          const formatGCalDate = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+          const gcalDates = `${formatGCalDate(startIso)}/${formatGCalDate(endIso)}`;
+          const gcalTitle = encodeURIComponent(`Consultation with Dr. Prajakta Joshi (Gyromotion)`);
+          const gcalDetails = encodeURIComponent(
+            `Doctor: Dr. Prajakta Joshi (Gyromotion Physiotherapy Clinic)\nMode: ${isOnline ? 'Online Video Meet' : 'In Clinic'}\n${isOnline && meetLink ? `Google Meet Link: ${meetLink}\n` : ''}${!isOnline ? `Address: ${CLINIC_ADDRESS}\n` : ''}WhatsApp: Connect with Dr. Prajakta on WhatsApp`
+          );
+          const gcalLocation = encodeURIComponent(isOnline ? (meetLink || 'Google Meet') : CLINIC_ADDRESS);
+          const addToGoogleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${gcalTitle}&dates=${gcalDates}&details=${gcalDetails}&location=${gcalLocation}`;
+
+          // Email HTML for Patient
+          const patientEmailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; background: #ffffff;">
+              <div style="background-color: #041f46; color: #ffffff; padding: 26px 20px; text-align: center;">
+                <h1 style="margin: 0; font-size: 22px; letter-spacing: 0.5px;">Gyromotion Physiotherapy Clinic</h1>
+                <p style="margin: 6px 0 0; font-size: 14px; opacity: 0.9;">Dr. Prajakta Joshi | Appointment Confirmation</p>
+              </div>
+              
+              <div style="padding: 28px 24px; color: #1e293b;">
+                <h2 style="color: #041f46; margin-top: 0; font-size: 20px;">Hello ${patientName},</h2>
+                <p style="font-size: 15px; line-height: 1.5; color: #475569;">
+                  Your appointment has been successfully confirmed. Below are your consultation details:
+                </p>
+
+                <div style="background-color: #f8fafc; border-left: 4px solid #041f46; padding: 16px 20px; margin: 20px 0; border-radius: 6px;">
+                  <p style="margin: 6px 0;"><strong>Date:</strong> ${formattedDate}</p>
+                  <p style="margin: 6px 0;"><strong>Time:</strong> ${time} IST</p>
+                  <p style="margin: 6px 0;"><strong>Consultation Mode:</strong> ${isOnline ? 'Online Video Meet' : 'Offline In Clinic'}</p>
+                  ${isOnline && appointmentType ? `<p style="margin: 6px 0;"><strong>Type:</strong> ${appointmentType}</p>` : ''}
+                  ${!isOnline ? `<p style="margin: 6px 0;"><strong>Clinic Address:</strong> ${CLINIC_ADDRESS}</p>` : ''}
+                </div>
+
+                <!-- Add to Google Calendar Button -->
+                <div style="text-align: center; margin: 22px 0;">
+                  <a href="${addToGoogleCalendarUrl}" target="_blank" style="display: inline-block; background-color: #041f46; color: #ffffff !important; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; box-shadow: 0 2px 8px rgba(4,31,70,0.2);">
+                    📅 Add to Google Calendar
+                  </a>
+                </div>
+
+                ${isOnline ? `
+                  <div style="background-color: #eff6ff; border: 1.5px solid #bfdbfe; padding: 20px; border-radius: 12px; text-align: center; margin: 24px 0;">
+                    <h3 style="margin: 0 0 6px; color: #1d4ed8; font-size: 18px;">📹 Google Meet Video Call</h3>
+                    <p style="margin: 0 0 16px; font-size: 14px; color: #475569;">
+                      Please join using the link below at your appointment time:
+                    </p>
+                    <a href="${meetLink}" target="_blank" style="display: inline-block; background-color: #1a73e8; color: #ffffff !important; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 15px;">
+                      Join Google Meet Call
+                    </a>
+                    <p style="margin: 12px 0 0; font-size: 12px; color: #64748b;">
+                      Meeting Link: <a href="${meetLink}" style="color: #1a73e8;">${meetLink}</a>
+                    </p>
+                  </div>
+                ` : `
+                  <div style="background-color: #f1f5f9; padding: 16px; border-radius: 8px; margin: 20px 0; font-size: 14px; color: #475569;">
+                    <strong>📍 Clinic Visit Instructions:</strong><br>
+                    Please arrive 5-10 minutes prior to your slot. If you have any previous MRI, X-Ray, or prescriptions, please bring them along.
+                  </div>
+                `}
+
+                <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 14px 18px; border-radius: 8px; margin: 20px 0; font-size: 13px; color: #166534;">
+                  <strong>💬 Need to change timing or reschedule?</strong><br>
+                  Connect with Dr. Prajakta on <a href="https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}&text=Hi%20Dr.%20Prajakta,%20I%20have%20an%20appointment%20booked%20for%20${date}%20at%20${time}%20and%20need%20to%20change%20the%20timing" style="color: #166534; font-weight: bold;">WhatsApp</a> or visit our <a href="https://gyromotionphysio.in/about.html#contact-section" style="color: #166534; font-weight: bold;">Contact Page</a>.
+                </div>
+
+                <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #64748b;">
+                  <p style="margin: 4px 0;"><strong>Doctor:</strong> Dr. Prajakta Joshi</p>
+                  <p style="margin: 4px 0;"><strong>Contact / WhatsApp:</strong> <a href="https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}&text=Hi%20Dr.%20Prajakta" style="color: #166534; font-weight: bold;">Chat on WhatsApp</a></p>
+                  <p style="margin: 4px 0;"><strong>Email:</strong> <a href="mailto:${DOCTOR_EMAIL}" style="color: #041f46;">${DOCTOR_EMAIL}</a></p>
+                </div>
+
+                <!-- System-Generated Notice -->
+                <div style="margin-top: 20px; padding: 12px 14px; background-color: #f1f5f9; border-radius: 8px; font-size: 12px; color: #64748b; text-align: center; border: 1px dashed #cbd5e1;">
+                  🤖 <em>Please Note: This is an automated, system-generated confirmation email. Replies to this email address are not monitored.</em><br>
+                  To reschedule or connect with the doctor, please use the WhatsApp link above.
+                </div>
+              </div>
+
+              <div style="background-color: #f8fafc; padding: 12px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+                &copy; ${new Date().getFullYear()} Gyromotion Physiotherapy Clinic. All rights reserved.
+              </div>
+            </div>
+          `;
+
+          // Email options for Patient
+          const mailOptionsPatient = {
+            from: `"Gyromotion Physiotherapy Clinic" <${process.env.GMAIL_USER}>`,
+            to: email,
+            subject: `Appointment Confirmed: ${patientName} - ${isOnline ? 'Online Video Meet' : 'In Clinic'} (${date} at ${time})`,
+            html: patientEmailHtml
+          };
+
+          // Email options for Clinic Notification
+          const attachments = req.files ? req.files.map(f => ({ filename: f.originalname, path: f.path })) : [];
+          const clinicEmailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; color: #1e293b;">
+              <h2 style="color: #041f46;">New Patient Appointment Booked</h2>
+              <p>A new appointment has been scheduled through the website:</p>
+              <ul style="line-height: 1.8;">
+                <li><strong>Patient:</strong> ${patientName}</li>
+                <li><strong>Phone:</strong> ${cleanPhone}</li>
+                <li><strong>Email:</strong> ${email}</li>
+                <li><strong>Mode:</strong> ${isOnline ? 'Online Video Consultation' : 'Offline In Clinic'}</li>
+                <li><strong>Date & Time:</strong> ${date} at ${time} IST</li>
+                <li><strong>Reason:</strong> ${reason || 'Not specified'}</li>
+                ${isOnline && meetLink ? `<li><strong>Google Meet Link:</strong> <a href="${meetLink}">${meetLink}</a></li>` : ''}
+              </ul>
+              ${attachments.length > 0 ? `<p><strong>Attached Investigations:</strong> ${attachments.map(a => a.filename).join(', ')}</p>` : ''}
+              <div style="margin-top: 24px; padding: 10px 14px; background-color: #f1f5f9; border-radius: 6px; font-size: 12px; color: #64748b; border: 1px dashed #cbd5e1;">
+                🤖 <em>Note: This is an automated, system-generated notification sent by Gyromotion Appointment Scheduler.</em>
+              </div>
+            </div>
+          `;
+
+          const mailOptionsClinic = {
+            from: `"Website Appointment System" <${process.env.GMAIL_USER}>`,
+            to: DOCTOR_EMAIL,
+            subject: `[New Appointment] ${patientName} - ${isOnline ? 'ONLINE MEET' : 'IN CLINIC'} on ${date} at ${time}`,
+            html: clinicEmailHtml,
+            attachments
+          };
+
+          await Promise.all([
+            transporter.sendMail(mailOptionsPatient),
+            transporter.sendMail(mailOptionsClinic)
+          ]);
+          console.log('✓ Confirmation emails sent to patient and clinic.');
+        } else {
+          console.warn('⚠️ Nodemailer not configured. Skipped confirmation emails.');
+        }
+      } catch (mailErr) {
+        console.error('Error sending confirmation email:', mailErr.message);
+      }
+
+      // 3. Trigger Automated SMS / WhatsApp Webhook (if configured)
+      if (MAKE_WEBHOOK_URL) {
+        try {
+          const wbRes = await fetch(MAKE_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event: 'appointment_booked',
+              patientName,
+              phone: cleanPhone,
+              email,
+              date,
+              time,
+              mode: isOnline ? 'Online' : 'Offline',
+              appointmentType: isOnline ? (appointmentType || 'General Consultation') : 'In-Clinic',
+              reason,
+              meetLink: meetLink || '',
+              clinicWhatsapp: CLINIC_WHATSAPP
+            })
+          });
+          console.log('✓ Automated SMS/WhatsApp Webhook fired. Response status:', wbRes.status);
+        } catch (webhookErr) {
+          console.warn('⚠️ Webhook trigger error:', webhookErr.message);
+        }
+      }
+    });
+
   } catch (error) {
     console.error('Booking error:', error);
-    res.status(500).json({ error: 'Failed to book appointment', details: error.message });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to book appointment', details: error.message });
+    }
   }
 });
 

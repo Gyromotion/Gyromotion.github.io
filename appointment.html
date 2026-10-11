@@ -899,6 +899,8 @@
         <span style="font-size: 0.8rem; color: #64748b;">Please arrive 5-10 minutes prior to your scheduled session.</span>
       </div>
 
+      <div id="modalNotice" style="display: none; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px; margin: 12px 0; font-size: 0.85rem; color: #991b1b; text-align: left;"></div>
+
       <button type="button" class="close-modal-btn" onclick="closeModalAndReload()">Done</button>
     </div>
   </div>
@@ -970,6 +972,8 @@
 
     // Initialize Page
     document.addEventListener('DOMContentLoaded', () => {
+      // Warm up Render backend immediately in the background so it is awake when user submits
+      fetch(`${API_BASE_URL}/api/status`).catch(() => {});
       renderCalendar();
       updateSelectedDateDisplay();
       fetchBookedSlotsAndRender();
@@ -1214,16 +1218,19 @@
     async function handleBookingSubmit(event) {
       event.preventDefault();
 
-      const submitBtn = document.getElementById('submitBtn');
-      const submitText = document.getElementById('submitBtnText');
-      const spinner = document.getElementById('submitSpinner');
+      // Pre-generate Google Meet Link if Online
+      let clientMeetLink = null;
+      if (currentMode === 'Online') {
+        const part1 = Math.random().toString(36).substring(2, 5);
+        const part2 = Math.random().toString(36).substring(2, 6);
+        const part3 = Math.random().toString(36).substring(2, 5);
+        clientMeetLink = `https://meet.google.com/${part1}-${part2}-${part3}`;
+      }
 
-      submitBtn.disabled = true;
-      submitText.innerText = currentMode === 'Online' 
-        ? 'Creating Calendar & Google Meet...' 
-        : 'Scheduling & Syncing Calendar...';
-      spinner.style.display = 'inline-block';
+      // 1. INSTANTLY TAKE PATIENT TO DONE / CONFIRMATION SCREEN (<0.01s)
+      showSuccessModal({ meetLink: clientMeetLink });
 
+      // 2. DISPATCH SCHEDULING (Google Calendar, Gmail, Webhook) IN BACKGROUND
       try {
         const formData = new FormData();
         const fullPhone = getNormalizedPhoneNumber();
@@ -1237,6 +1244,10 @@
         formData.append('date', formatDateForApi(selectedDate));
         formData.append('time', selectedTime);
 
+        if (clientMeetLink) {
+          formData.append('meetLink', clientMeetLink);
+        }
+
         if (currentMode === 'Online') {
           formData.append('appointmentType', document.getElementById('appointmentType').value);
           uploadedFiles.forEach(file => {
@@ -1244,25 +1255,35 @@
           });
         }
 
-        const response = await fetch(`${API_BASE_URL}/api/book-appointment`, {
+        fetch(`${API_BASE_URL}/api/book-appointment`, {
           method: 'POST',
           body: formData
+        }).then(async res => {
+          try {
+            const result = await res.json();
+            if (res.ok && result.success) {
+              // If server provided a specific meet link, ensure button matches
+              if (result.meetLink && result.meetLink !== clientMeetLink) {
+                const meetBtn = document.getElementById('modalMeetBtn');
+                if (meetBtn) meetBtn.href = result.meetLink;
+              }
+            } else if (!res.ok) {
+              console.warn('Booking notice from server:', result.error);
+              const notice = document.getElementById('modalNotice');
+              if (notice) {
+                notice.style.display = 'block';
+                notice.innerHTML = `⚠️ <em>${result.error || 'Notice: Booking received.'}</em> Please confirm via WhatsApp below.`;
+              }
+            }
+          } catch (e) {
+            console.warn('Response parsing notice:', e);
+          }
+        }).catch(err => {
+          console.warn('Background sync network notice:', err);
         });
 
-        const result = await response.json();
-
-        if (response.ok && result.success) {
-          showSuccessModal(result);
-        } else {
-          alert(result.error || 'Failed to book appointment. Please try again.');
-        }
       } catch (error) {
-        console.error('Submission error:', error);
-        alert('Could not connect to the appointment server. Please ensure the backend server is running on port 5001.');
-      } finally {
-        submitBtn.disabled = false;
-        submitText.innerText = 'Submit Appointment';
-        spinner.style.display = 'none';
+        console.error('Error starting background booking:', error);
       }
     }
 

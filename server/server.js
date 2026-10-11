@@ -49,21 +49,59 @@ const upload = multer({
 
 // Load Google Service Account
 let serviceAccount = null;
+
+// 1. Check environment variable (stringified JSON)
 if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
   try {
-    serviceAccount = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+    let raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON.trim();
+    if ((raw.startsWith("'") && raw.endsWith("'")) || (raw.startsWith('"') && raw.endsWith('"'))) {
+      raw = raw.slice(1, -1);
+    }
+    serviceAccount = JSON.parse(raw);
+    console.log('✓ Loaded service account from GOOGLE_SERVICE_ACCOUNT_JSON environment variable');
   } catch (err) {
     console.error('Error parsing GOOGLE_SERVICE_ACCOUNT_JSON env var:', err.message);
   }
 }
+
+// 2. Check candidate file paths
 if (!serviceAccount) {
-  const serviceAccountPath = path.resolve(__dirname, 'service-account.json');
-  if (fs.existsSync(serviceAccountPath)) {
-    serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-  } else {
-    console.warn('Warning: service-account.json not found at', serviceAccountPath);
+  const candidatePaths = [
+    path.resolve(__dirname, 'service-account.json'),
+    path.resolve(__dirname, '../service-account.json'),
+    '/etc/secrets/service-account.json', // Render secret file default
+    '/opt/render/project/src/service-account.json',
+    '/opt/render/project/src/server/service-account.json',
+    process.env.GOOGLE_SERVICE_ACCOUNT_KEY
+  ].filter(Boolean);
+
+  for (const p of candidatePaths) {
+    if (fs.existsSync(p)) {
+      try {
+        serviceAccount = JSON.parse(fs.readFileSync(p, 'utf8'));
+        console.log('✓ Loaded service account from file:', p);
+        break;
+      } catch (e) {
+        console.error('Failed reading service account from', p, e.message);
+      }
+    }
+  }
+
+  if (!serviceAccount) {
+    console.warn('Warning: Google Service Account not found. Checked paths:', candidatePaths);
   }
 }
+
+// Health & Status check endpoint
+app.get('/api/status', (req, res) => {
+  res.json({
+    status: 'ok',
+    calendarConfigured: !!serviceAccount,
+    serviceAccountEmail: serviceAccount ? serviceAccount.client_email : null,
+    calendarId: CALENDAR_ID,
+    emailConfigured: !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD)
+  });
+});
 
 // Google Calendar API client
 function getCalendarClient() {

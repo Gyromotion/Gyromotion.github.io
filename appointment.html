@@ -929,10 +929,10 @@
       { time: '19:30', label: '7:30 PM' }
     ];
 
-    // API URL: dynamically detect port or use relative path
+    // API URL: dynamically detect localhost or connect to live Render backend
     const API_BASE_URL = window.location.origin.includes('localhost') 
       ? window.location.origin 
-      : 'http://localhost:5001';
+      : 'https://gyromotion-github-io.onrender.com';
 
     const CLINIC_WHATSAPP_NUMBER = '919518554022';
 

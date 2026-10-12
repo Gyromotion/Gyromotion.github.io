@@ -136,12 +136,13 @@ function getEmailTransporter() {
   }
   return nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    port: 587,
+    secure: false, // use STARTTLS on port 587 (more reliable on cloud hosts like Render)
     auth: { user, pass },
-    connectionTimeout: 10000, // 10s max connection timeout
-    greetingTimeout: 5000,
-    socketTimeout: 15000 // 15s max socket timeout
+    requireTLS: true,
+    connectionTimeout: 30000, // 30s connection timeout
+    greetingTimeout: 15000,
+    socketTimeout: 30000 // 30s socket timeout
   });
 }
 

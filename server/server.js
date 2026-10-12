@@ -126,24 +126,63 @@ function getCalendarClient() {
   return google.calendar({ version: 'v3', auth });
 }
 
-// Nodemailer Transporter with direct SMTP and timeout protection
+// Gmail API Email Sender (HTTPS-based, no SMTP port needed)
+// Render's free tier blocks outbound SMTP ports (465/587).
+// Gmail API uses HTTPS (port 443) which works everywhere.
 function getEmailTransporter() {
   const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD ? process.env.GMAIL_APP_PASSWORD.replace(/\s+/g, '') : '';
-  if (!user || !pass) {
-    console.warn('Warning: GMAIL_USER or GMAIL_APP_PASSWORD not set');
-    return null;
+  const clientId = process.env.GMAIL_CLIENT_ID;
+  const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+  const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
+
+  // Primary: Gmail API over HTTPS (for Render / production)
+  if (user && clientId && clientSecret && refreshToken) {
+    const oauth2Client = new google.auth.OAuth2(
+      clientId,
+      clientSecret,
+      'https://developers.google.com/oauthplayground'
+    );
+    oauth2Client.setCredentials({ refresh_token: refreshToken });
+    const gmailApi = google.gmail({ version: 'v1', auth: oauth2Client });
+
+    console.log('✓ Email transport: Gmail API over HTTPS');
+
+    return {
+      sendMail: async (mailOptions) => {
+        // Dynamically import nodemailer's MailComposer to build MIME message
+        const { default: MailComposer } = await import('nodemailer/lib/mail-composer/index.js');
+        const mail = new MailComposer(mailOptions);
+        const message = await mail.compile().build();
+        const raw = Buffer.from(message).toString('base64url');
+
+        const result = await gmailApi.users.messages.send({
+          userId: 'me',
+          requestBody: { raw }
+        });
+
+        return { messageId: result.data.id };
+      }
+    };
   }
-  return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // use STARTTLS on port 587 (more reliable on cloud hosts like Render)
-    auth: { user, pass },
-    requireTLS: true,
-    connectionTimeout: 30000, // 30s connection timeout
-    greetingTimeout: 15000,
-    socketTimeout: 30000 // 30s socket timeout
-  });
+
+  // Fallback: SMTP with App Password (for local development)
+  const pass = process.env.GMAIL_APP_PASSWORD ? process.env.GMAIL_APP_PASSWORD.replace(/\s+/g, '') : '';
+  if (user && pass) {
+    console.log('✓ Email transport: SMTP (local dev fallback)');
+    return nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: { user, pass },
+      requireTLS: true,
+      connectionTimeout: 30000,
+      greetingTimeout: 15000,
+      socketTimeout: 30000
+    });
+  }
+
+  console.warn('Warning: Email not configured. Set GMAIL_CLIENT_ID + GMAIL_CLIENT_SECRET + GMAIL_REFRESH_TOKEN (production) or GMAIL_APP_PASSWORD (local dev).');
+  return null;
 }
 
 // Helper: Generate Google Meet Link

@@ -224,6 +224,36 @@ function saveStoredAppointments(list) {
 }
 
 // -------------------------------------------------------------
+// Persistent Email Logs (email-logs.json)
+// -------------------------------------------------------------
+const EMAIL_LOGS_FILE = path.resolve(__dirname, 'email-logs.json');
+
+function logEmailSent({ type, to, subject, status, messageId, error }) {
+  try {
+    let logs = [];
+    if (fs.existsSync(EMAIL_LOGS_FILE)) {
+      logs = JSON.parse(fs.readFileSync(EMAIL_LOGS_FILE, 'utf8'));
+    }
+    const now = new Date();
+    logs.unshift({
+      timestamp: now.toISOString(),
+      timeIST: now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true }),
+      dateIST: now.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }),
+      type,
+      to,
+      subject,
+      status, // 'SUCCESS' | 'FAILED'
+      messageId: messageId || null,
+      error: error || null
+    });
+    if (logs.length > 100) logs = logs.slice(0, 100);
+    fs.writeFileSync(EMAIL_LOGS_FILE, JSON.stringify(logs, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Error recording email log:', e.message);
+  }
+}
+
+// -------------------------------------------------------------
 // Automated 30-Minute Advance Reminder Scheduler
 // -------------------------------------------------------------
 async function checkUpcomingReminders() {
@@ -302,24 +332,36 @@ async function checkUpcomingReminders() {
             </div>
           `;
 
-          await Promise.allSettled([
-            transporter.sendMail({
+          try {
+            const prRes = await transporter.sendMail({
               from: `"Gyromotion Physiotherapy Clinic" <${process.env.GMAIL_USER}>`,
               to: apt.email,
               replyTo: DOCTOR_EMAIL,
               subject: patientReminderSubject,
               text: patientReminderText,
               html: patientReminderHtml
-            }),
-            transporter.sendMail({
+            });
+            logEmailSent({ type: '30-Min Reminder (Patient)', to: apt.email, subject: patientReminderSubject, status: 'SUCCESS', messageId: prRes.messageId });
+          } catch (prErr) {
+            console.error('Error sending patient reminder email:', prErr.message);
+            logEmailSent({ type: '30-Min Reminder (Patient)', to: apt.email, subject: patientReminderSubject, status: 'FAILED', error: prErr.message });
+          }
+
+          try {
+            const drRes = await transporter.sendMail({
               from: `"Website Appointment System" <${process.env.GMAIL_USER}>`,
               to: DOCTOR_EMAIL,
               replyTo: apt.email,
               subject: clinicReminderSubject,
               text: clinicReminderText,
               html: clinicReminderHtml
-            })
-          ]);
+            });
+            logEmailSent({ type: '30-Min Reminder (Doctor)', to: DOCTOR_EMAIL, subject: clinicReminderSubject, status: 'SUCCESS', messageId: drRes.messageId });
+          } catch (drErr) {
+            console.error('Error sending doctor reminder email:', drErr.message);
+            logEmailSent({ type: '30-Min Reminder (Doctor)', to: DOCTOR_EMAIL, subject: clinicReminderSubject, status: 'FAILED', error: drErr.message });
+          }
+
           console.log(`✓ 30-minute reminder emails dispatched for ${apt.patientName}`);
         }
 
@@ -621,16 +663,20 @@ app.post('/api/book-appointment', upload.array('files', 5), async (req, res) => 
             const pRes = await transporter.sendMail(mailOptionsPatient);
             patientSent = true;
             console.log(`✓ Patient confirmation email sent to ${email} (MessageId: ${pRes.messageId})`);
+            logEmailSent({ type: 'Confirmation (Patient)', to: email, subject: mailOptionsPatient.subject, status: 'SUCCESS', messageId: pRes.messageId });
           } catch (pErr) {
             console.error(`Error sending patient email to ${email}:`, pErr.message);
+            logEmailSent({ type: 'Confirmation (Patient)', to: email, subject: mailOptionsPatient.subject, status: 'FAILED', error: pErr.message });
           }
 
           try {
             const cRes = await transporter.sendMail(mailOptionsClinic);
             clinicSent = true;
             console.log(`✓ Clinic alert email sent to ${DOCTOR_EMAIL} (MessageId: ${cRes.messageId})`);
+            logEmailSent({ type: 'Alert (Doctor)', to: DOCTOR_EMAIL, subject: mailOptionsClinic.subject, status: 'SUCCESS', messageId: cRes.messageId });
           } catch (cErr) {
             console.error(`Error sending clinic alert email to ${DOCTOR_EMAIL}:`, cErr.message);
+            logEmailSent({ type: 'Alert (Doctor)', to: DOCTOR_EMAIL, subject: mailOptionsClinic.subject, status: 'FAILED', error: cErr.message });
           }
         } else {
           console.warn('⚠️ Nodemailer not configured. Skipped confirmation emails.');
@@ -794,11 +840,12 @@ app.get('/api/test-appointment-email', async (req, res) => {
       attendeeName: 'Test Patient'
     });
 
+    const emailSubj = `[Diagnostic Verification] Appointment Email & 30-Min Reminder Test (${new Date().toLocaleTimeString('en-IN')})`;
     const info = await transporter.sendMail({
       from: `"Gyromotion Physiotherapy Clinic" <${process.env.GMAIL_USER}>`,
       to: targetEmail,
       replyTo: DOCTOR_EMAIL,
-      subject: `[Diagnostic Verification] Appointment Email & 30-Min Reminder Test (${new Date().toLocaleTimeString('en-IN')})`,
+      subject: emailSubj,
       text: `Hello,\n\nThis is a diagnostic verification email confirming that Gyromotion's appointment mailing system, plain text alternatives, and 30-minute calendar invite attachments are operating with 100% deliverability.\n\nGyromotion Physiotherapy Clinic`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;">
@@ -817,11 +864,34 @@ app.get('/api/test-appointment-email', async (req, res) => {
       ]
     });
 
+    logEmailSent({ type: 'Diagnostic Test', to: targetEmail, subject: emailSubj, status: 'SUCCESS', messageId: info.messageId });
+
     res.json({
       success: true,
       message: 'Diagnostic appointment email sent successfully!',
       targetEmail,
       messageId: info.messageId
+    });
+  } catch (err) {
+    logEmailSent({ type: 'Diagnostic Test', to: targetEmail, subject: 'Diagnostic Verification', status: 'FAILED', error: err.message });
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// Endpoint: View Recent Email Logs
+// GET /api/email-logs
+// -------------------------------------------------------------
+app.get('/api/email-logs', (req, res) => {
+  try {
+    let logs = [];
+    if (fs.existsSync(EMAIL_LOGS_FILE)) {
+      logs = JSON.parse(fs.readFileSync(EMAIL_LOGS_FILE, 'utf8'));
+    }
+    res.json({
+      success: true,
+      count: logs.length,
+      logs
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

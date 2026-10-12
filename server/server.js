@@ -157,6 +157,190 @@ function generateMeetLink() {
 }
 
 // -------------------------------------------------------------
+// RFC 5545 iCalendar (.ics) Generator with 30-Minute Alarm
+// -------------------------------------------------------------
+function generateIcsInvite({ uid, summary, description, location, start, end, organizerEmail, attendeeEmail, attendeeName }) {
+  const formatDateIcs = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const nowStr = formatDateIcs(new Date());
+  const startStr = formatDateIcs(start);
+  const endStr = formatDateIcs(end);
+
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Gyromotion Clinic//Appointment Scheduler//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:REQUEST',
+    'BEGIN:VEVENT',
+    `UID:${uid}@gyromotionphysio.in`,
+    `DTSTAMP:${nowStr}`,
+    `DTSTART:${startStr}`,
+    `DTEND:${endStr}`,
+    `SUMMARY:${summary}`,
+    `DESCRIPTION:${description.replace(/\n/g, '\\n')}`,
+    `LOCATION:${location}`,
+    `ORGANIZER;CN="Dr. Prajakta Joshi":mailto:${organizerEmail}`,
+    `ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN="${attendeeName}":mailto:${attendeeEmail}`,
+    'STATUS:CONFIRMED',
+    'BEGIN:VALARM',
+    'TRIGGER:-PT30M',
+    'ACTION:DISPLAY',
+    'DESCRIPTION:Appointment with Dr. Prajakta Joshi in 30 minutes',
+    'END:VALARM',
+    'BEGIN:VALARM',
+    'TRIGGER:-PT30M',
+    'ACTION:EMAIL',
+    'DESCRIPTION:Appointment with Dr. Prajakta Joshi in 30 minutes',
+    `SUMMARY:Reminder: Appointment in 30 minutes`,
+    `ATTENDEE:mailto:${attendeeEmail}`,
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].join('\r\n');
+}
+
+// -------------------------------------------------------------
+// Persistent Appointments Storage (appointments.json)
+// -------------------------------------------------------------
+const APPOINTMENTS_FILE = path.resolve(__dirname, 'appointments.json');
+
+function loadStoredAppointments() {
+  try {
+    if (fs.existsSync(APPOINTMENTS_FILE)) {
+      return JSON.parse(fs.readFileSync(APPOINTMENTS_FILE, 'utf8'));
+    }
+  } catch (err) {
+    console.error('Error reading appointments.json:', err.message);
+  }
+  return [];
+}
+
+function saveStoredAppointments(list) {
+  try {
+    fs.writeFileSync(APPOINTMENTS_FILE, JSON.stringify(list, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error saving appointments.json:', err.message);
+  }
+}
+
+// -------------------------------------------------------------
+// Automated 30-Minute Advance Reminder Scheduler
+// -------------------------------------------------------------
+async function checkUpcomingReminders() {
+  const appointments = loadStoredAppointments();
+  if (!appointments || appointments.length === 0) return;
+
+  const now = Date.now();
+  let updated = false;
+
+  for (const apt of appointments) {
+    if (apt.reminder30MinSent) continue;
+
+    try {
+      // Parse appointment datetime in IST (+05:30)
+      const aptTime = new Date(`${apt.date}T${apt.time}:00+05:30`).getTime();
+      const diffMinutes = Math.round((aptTime - now) / (60 * 1000));
+
+      // Trigger if within 30 minutes (between -10 and 32 minutes from now)
+      if (diffMinutes <= 30 && diffMinutes >= -10) {
+        console.log(`⏰ Sending 30-minute reminder for ${apt.patientName} (${apt.time} IST, diff: ${diffMinutes}m)`);
+        const transporter = getEmailTransporter();
+        if (transporter) {
+          const isOnline = apt.mode && apt.mode.toLowerCase() === 'online';
+
+          // Reminder email to Patient
+          const patientReminderSubject = `⏰ Reminder: Consultation with Dr. Prajakta Joshi in 30 minutes (${apt.time} IST)`;
+          const patientReminderText = `Hello ${apt.patientName},\n\nYour consultation with Dr. Prajakta Joshi begins in 30 minutes at ${apt.time} IST (${isOnline ? 'Online Video Meet' : 'In Clinic'}).\n\n${isOnline && apt.meetLink ? `Google Meet Link: ${apt.meetLink}\n` : ''}${!isOnline ? `Clinic Location: ${CLINIC_ADDRESS}\n` : ''}\nDoctor: Dr. Prajakta Joshi\nWhatsApp Support: https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}\n\nGyromotion Physiotherapy Clinic`;
+          const patientReminderHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; background: #ffffff;">
+              <div style="background-color: #041f46; color: #ffffff; padding: 22px 20px; text-align: center;">
+                <h1 style="margin: 0; font-size: 20px;">Gyromotion Physiotherapy Clinic</h1>
+                <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.9;">Dr. Prajakta Joshi | 30-Minute Consultation Reminder</p>
+              </div>
+              <div style="padding: 24px; color: #1e293b;">
+                <h2 style="color: #041f46; margin-top: 0; font-size: 18px;">Hello ${apt.patientName},</h2>
+                <p style="font-size: 15px; color: #334155; line-height: 1.5;">
+                  Your appointment with Dr. Prajakta Joshi begins in <strong>30 minutes</strong> at <strong>${apt.time} IST</strong>.
+                </p>
+                <div style="background-color: #f8fafc; border-left: 4px solid #041f46; padding: 14px 18px; margin: 18px 0; border-radius: 6px;">
+                  <p style="margin: 4px 0;"><strong>Date:</strong> ${apt.date}</p>
+                  <p style="margin: 4px 0;"><strong>Time:</strong> ${apt.time} IST</p>
+                  <p style="margin: 4px 0;"><strong>Mode:</strong> ${isOnline ? 'Online Video Meet' : 'Offline In Clinic'}</p>
+                  ${!isOnline ? `<p style="margin: 4px 0;"><strong>Location:</strong> ${CLINIC_ADDRESS}</p>` : ''}
+                </div>
+                ${isOnline && apt.meetLink ? `
+                  <div style="text-align: center; margin: 22px 0;">
+                    <a href="${apt.meetLink}" target="_blank" style="background-color: #1a73e8; color: #ffffff !important; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 15px; display: inline-block;">
+                      📹 Join Google Meet Now
+                    </a>
+                    <p style="margin: 8px 0 0; font-size: 12px; color: #64748b;">Link: ${apt.meetLink}</p>
+                  </div>
+                ` : `
+                  <p style="font-size: 13px; color: #64748b; margin: 12px 0;">Please arrive 5-10 minutes prior to your slot.</p>
+                `}
+                <div style="margin-top: 20px; padding: 12px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; font-size: 13px; color: #166534;">
+                  💬 Running late or need assistance? Chat with Dr. Prajakta on <a href="https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}&text=Hi%20Dr.%20Prajakta" style="color: #166534; font-weight: bold;">WhatsApp</a>.
+                </div>
+              </div>
+            </div>
+          `;
+
+          // Reminder email to Doctor
+          const clinicReminderSubject = `⏰ [30-Min Alert] Upcoming Patient: ${apt.patientName} at ${apt.time} IST`;
+          const clinicReminderText = `Upcoming Consultation in 30 Minutes:\nPatient: ${apt.patientName}\nPhone: ${apt.phone}\nTime: ${apt.time} IST\nMode: ${isOnline ? 'Online Video Meet' : 'In Clinic'}\n${isOnline && apt.meetLink ? `Google Meet: ${apt.meetLink}` : ''}`;
+          const clinicReminderHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; color: #1e293b;">
+              <h2 style="color: #041f46;">Consultation in 30 Minutes</h2>
+              <ul style="line-height: 1.8;">
+                <li><strong>Patient:</strong> ${apt.patientName}</li>
+                <li><strong>Phone:</strong> ${apt.phone}</li>
+                <li><strong>Email:</strong> ${apt.email}</li>
+                <li><strong>Time:</strong> ${apt.time} IST</li>
+                <li><strong>Mode:</strong> ${isOnline ? 'Online Video Meet' : 'In Clinic'}</li>
+                ${isOnline && apt.meetLink ? `<li><strong>Google Meet:</strong> <a href="${apt.meetLink}">${apt.meetLink}</a></li>` : ''}
+              </ul>
+            </div>
+          `;
+
+          await Promise.allSettled([
+            transporter.sendMail({
+              from: `"Gyromotion Physiotherapy Clinic" <${process.env.GMAIL_USER}>`,
+              to: apt.email,
+              replyTo: DOCTOR_EMAIL,
+              subject: patientReminderSubject,
+              text: patientReminderText,
+              html: patientReminderHtml
+            }),
+            transporter.sendMail({
+              from: `"Website Appointment System" <${process.env.GMAIL_USER}>`,
+              to: DOCTOR_EMAIL,
+              replyTo: apt.email,
+              subject: clinicReminderSubject,
+              text: clinicReminderText,
+              html: clinicReminderHtml
+            })
+          ]);
+          console.log(`✓ 30-minute reminder emails dispatched for ${apt.patientName}`);
+        }
+
+        apt.reminder30MinSent = true;
+        updated = true;
+      }
+    } catch (e) {
+      console.error('Error in 30-min reminder check:', e.message);
+    }
+  }
+
+  if (updated) {
+    saveStoredAppointments(appointments);
+  }
+}
+
+// Start recurring 60-second reminder scheduler and run on startup
+setInterval(checkUpcomingReminders, 60 * 1000);
+setTimeout(checkUpcomingReminders, 5000);
+
+// -------------------------------------------------------------
 // API: GET /api/appointments?date=YYYY-MM-DD
 // Queries Google Calendar directly for real-time slot blocking
 // -------------------------------------------------------------
@@ -361,13 +545,41 @@ app.post('/api/book-appointment', upload.array('files', 5), async (req, res) => 
             </div>
           `;
 
+          // Generate RFC 5545 ICS calendar invite with 30-minute reminder
+          const icsInviteData = generateIcsInvite({
+            uid: `apt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            summary: `Consultation with Dr. Prajakta Joshi (${isOnline ? 'Online Meet' : 'In Clinic'})`,
+            description: `Doctor: Dr. Prajakta Joshi (Gyromotion Physiotherapy Clinic)\nMode: ${isOnline ? 'Online Video Meet' : 'In Clinic'}\n${isOnline && meetLink ? `Google Meet Link: ${meetLink}\n` : ''}${!isOnline ? `Address: ${CLINIC_ADDRESS}\n` : ''}WhatsApp: https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}`,
+            location: isOnline ? (meetLink || 'Google Meet') : CLINIC_ADDRESS,
+            start: startIso,
+            end: endIso,
+            organizerEmail: DOCTOR_EMAIL,
+            attendeeEmail: email,
+            attendeeName: patientName
+          });
+
+          // Email plain-text fallback for Patient
+          const patientEmailText = `Hello ${patientName},\n\nYour appointment with Dr. Prajakta Joshi has been successfully confirmed!\n\nAppointment Details:\n- Date: ${formattedDate}\n- Time: ${time} IST\n- Consultation Mode: ${isOnline ? 'Online Video Meet' : 'Offline In Clinic'}\n${isOnline && appointmentType ? `- Type: ${appointmentType}\n` : ''}${isOnline && meetLink ? `- Google Meet Link: ${meetLink}\n` : ''}${!isOnline ? `- Clinic Address: ${CLINIC_ADDRESS}\n` : ''}\nA 30-minute advance calendar invite is attached to this email.\n\nNeed to reschedule? Connect on WhatsApp: https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}\n\n🤖 Note: This is an automated system-generated confirmation email.\nGyromotion Physiotherapy Clinic`;
+
           // Email options for Patient
           const mailOptionsPatient = {
             from: `"Gyromotion Physiotherapy Clinic" <${process.env.GMAIL_USER}>`,
             to: email,
+            replyTo: DOCTOR_EMAIL,
             subject: `Appointment Confirmed: ${patientName} - ${isOnline ? 'Online Video Meet' : 'In Clinic'} (${date} at ${time})`,
-            html: patientEmailHtml
+            text: patientEmailText,
+            html: patientEmailHtml,
+            attachments: [
+              {
+                filename: 'appointment-invite.ics',
+                content: icsInviteData,
+                contentType: 'text/calendar; charset=utf-8; method=REQUEST'
+              }
+            ]
           };
+
+          // Email plain-text fallback for Clinic
+          const clinicEmailText = `New Patient Appointment Booked:\n\n- Patient: ${patientName}\n- Phone: ${cleanPhone}\n- Email: ${email}\n- Mode: ${isOnline ? 'Online Video Consultation' : 'Offline In Clinic'}\n- Date & Time: ${date} at ${time} IST\n- Reason: ${reason || 'Not specified'}\n${isOnline && meetLink ? `- Google Meet: ${meetLink}\n` : ''}\nGyromotion Website Scheduler`;
 
           // Email options for Clinic Notification
           const attachments = req.files ? req.files.map(f => ({ filename: f.originalname, path: f.path })) : [];
@@ -394,25 +606,41 @@ app.post('/api/book-appointment', upload.array('files', 5), async (req, res) => 
           const mailOptionsClinic = {
             from: `"Website Appointment System" <${process.env.GMAIL_USER}>`,
             to: DOCTOR_EMAIL,
+            replyTo: email,
             subject: `[New Appointment] ${patientName} - ${isOnline ? 'ONLINE MEET' : 'IN CLINIC'} on ${date} at ${time}`,
+            text: clinicEmailText,
             html: clinicEmailHtml,
             attachments
           };
 
-          await Promise.all([
-            transporter.sendMail(mailOptionsPatient),
-            transporter.sendMail(mailOptionsClinic)
-          ]);
-          console.log('✓ Confirmation emails sent to patient and clinic.');
+          // Send emails with separate try/catches so neither blocks the other
+          let patientSent = false;
+          let clinicSent = false;
+
+          try {
+            const pRes = await transporter.sendMail(mailOptionsPatient);
+            patientSent = true;
+            console.log(`✓ Patient confirmation email sent to ${email} (MessageId: ${pRes.messageId})`);
+          } catch (pErr) {
+            console.error(`Error sending patient email to ${email}:`, pErr.message);
+          }
+
+          try {
+            const cRes = await transporter.sendMail(mailOptionsClinic);
+            clinicSent = true;
+            console.log(`✓ Clinic alert email sent to ${DOCTOR_EMAIL} (MessageId: ${cRes.messageId})`);
+          } catch (cErr) {
+            console.error(`Error sending clinic alert email to ${DOCTOR_EMAIL}:`, cErr.message);
+          }
         } else {
           console.warn('⚠️ Nodemailer not configured. Skipped confirmation emails.');
         }
       } catch (mailErr) {
-        console.error('Error sending confirmation email:', mailErr.message);
+        console.error('Error in email sending task:', mailErr.message);
       }
     })();
 
-    // 2. Google Calendar Event (runs in parallel with email)
+    // 2. Google Calendar Event with 30-Minute Popup & Email Reminders
     const calendarTask = (async () => {
       try {
         const calendar = getCalendarClient();
@@ -442,14 +670,21 @@ app.post('/api/book-appointment', upload.array('files', 5), async (req, res) => 
             description,
             location: isOnline ? meetLink : CLINIC_ADDRESS,
             start: { dateTime: isoDateTime, timeZone: 'Asia/Kolkata' },
-            end: { dateTime: isoEndDateTime, timeZone: 'Asia/Kolkata' }
+            end: { dateTime: isoEndDateTime, timeZone: 'Asia/Kolkata' },
+            reminders: {
+              useDefault: false,
+              overrides: [
+                { method: 'popup', minutes: 30 },
+                { method: 'email', minutes: 30 }
+              ]
+            }
           };
 
           const calInsertRes = await calendar.events.insert({
             calendarId: CALENDAR_ID,
             resource: eventPayload
           });
-          console.log('✓ Google Calendar event created:', calInsertRes.data.id, calInsertRes.data.summary);
+          console.log('✓ Google Calendar event created with 30-min reminders:', calInsertRes.data.id, calInsertRes.data.summary);
         } else {
           console.warn('⚠️ Google Calendar not configured. Skipped Google Calendar event creation.');
         }
@@ -486,6 +721,29 @@ app.post('/api/book-appointment', upload.array('files', 5), async (req, res) => 
       }
     })();
 
+    // 4. Save to persistent appointments list for automated 30-minute reminder job
+    try {
+      const storedApts = loadStoredAppointments();
+      storedApts.push({
+        id: `apt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        patientName,
+        phone: cleanPhone,
+        email,
+        date,
+        time,
+        mode: isOnline ? 'Online' : 'Offline',
+        appointmentType: isOnline ? (appointmentType || 'General Consultation') : 'In-Clinic',
+        reason: reason || '',
+        meetLink: meetLink || null,
+        reminder30MinSent: false,
+        createdAt: new Date().toISOString()
+      });
+      saveStoredAppointments(storedApts);
+      console.log(`✓ Appointment saved to appointments.json for 30-minute reminder tracking.`);
+    } catch (storeErr) {
+      console.warn('Failed to save to appointments.json:', storeErr.message);
+    }
+
     // Wait for parallel tasks to finish with 100% active CPU allocation
     await Promise.allSettled([emailTask, calendarTask, webhookTask]);
 
@@ -509,6 +767,64 @@ app.post('/api/book-appointment', upload.array('files', 5), async (req, res) => 
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to book appointment', details: error.message });
     }
+  }
+});
+
+// -------------------------------------------------------------
+// Diagnostic Endpoint: Test Live Appointment Email Delivery
+// GET /api/test-appointment-email?to=your_email@example.com
+// -------------------------------------------------------------
+app.get('/api/test-appointment-email', async (req, res) => {
+  const targetEmail = req.query.to || DOCTOR_EMAIL;
+  try {
+    const transporter = getEmailTransporter();
+    if (!transporter) return res.status(500).json({ error: 'Nodemailer not configured' });
+
+    const testIsoStart = new Date(Date.now() + 60 * 60 * 1000);
+    const testIsoEnd = new Date(Date.now() + 90 * 60 * 1000);
+    const icsData = generateIcsInvite({
+      uid: 'diag_' + Date.now(),
+      summary: 'Diagnostic Consultation - Dr. Prajakta Joshi',
+      description: `Test consultation with Dr. Prajakta Joshi\nLocation: ${CLINIC_ADDRESS}`,
+      location: CLINIC_ADDRESS,
+      start: testIsoStart,
+      end: testIsoEnd,
+      organizerEmail: DOCTOR_EMAIL,
+      attendeeEmail: targetEmail,
+      attendeeName: 'Test Patient'
+    });
+
+    const info = await transporter.sendMail({
+      from: `"Gyromotion Physiotherapy Clinic" <${process.env.GMAIL_USER}>`,
+      to: targetEmail,
+      replyTo: DOCTOR_EMAIL,
+      subject: `[Diagnostic Verification] Appointment Email & 30-Min Reminder Test (${new Date().toLocaleTimeString('en-IN')})`,
+      text: `Hello,\n\nThis is a diagnostic verification email confirming that Gyromotion's appointment mailing system, plain text alternatives, and 30-minute calendar invite attachments are operating with 100% deliverability.\n\nGyromotion Physiotherapy Clinic`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;">
+          <h2 style="color: #041f46; margin-top: 0;">✓ Diagnostic Email Verification</h2>
+          <p>This email confirms that Gyromotion appointment mailing system is operating properly.</p>
+          <p><strong>Recipient:</strong> ${targetEmail}</p>
+          <p><strong>30-Minute Calendar Alarm Attached:</strong> Yes (appointment-invite.ics with VALARM -PT30M).</p>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: 'appointment-invite.ics',
+          content: icsData,
+          contentType: 'text/calendar; charset=utf-8; method=REQUEST'
+        }
+      ]
+    });
+
+    res.json({
+      success: true,
+      message: 'Diagnostic appointment email sent successfully!',
+      targetEmail,
+      messageId: info.messageId
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

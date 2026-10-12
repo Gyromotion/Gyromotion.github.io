@@ -1,0 +1,16 @@
+[
+  {
+    "id": "apt_1791786017575_lt844",
+    "patientName": "Pratham Joshi",
+    "phone": "+919503558952",
+    "email": "gyromotion.physio@gmail.com",
+    "date": "2026-10-15",
+    "time": "17:30",
+    "mode": "Offline",
+    "appointmentType": "In-Clinic",
+    "reason": "Check reminders and email",
+    "meetLink": null,
+    "reminder30MinSent": false,
+    "createdAt": "2026-10-12T06:20:17.575Z"
+  }
+]

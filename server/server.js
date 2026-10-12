@@ -19,6 +19,7 @@ const PORT = process.env.PORT || 5001;
 const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID || '0912795c6a321a033081b1cb0ebf70bcb3f7139410a7f08cacda7fe022905b8d@group.calendar.google.com';
 const DOCTOR_EMAIL = process.env.DOCTOR_EMAIL || 'gyromotion.physio@gmail.com';
 const CLINIC_ADDRESS = process.env.CLINIC_ADDRESS || 'Plot Number 1, Shree Siddhivinayak society, Near Pawar Hospital, front Of Lotus Computers, Vatan Nagar, Talegaon Dabhade, Pune 410507';
+const CLINIC_MAPS_URL = process.env.CLINIC_MAPS_URL || 'https://maps.app.goo.gl/NPd3sYozJ439jVKg8';
 const CLINIC_WHATSAPP = process.env.CLINIC_WHATSAPP || '919518554022';
 const MAKE_WEBHOOK_URL = process.env.MAKE_WEBHOOK_URL || '';
 
@@ -320,7 +321,7 @@ async function checkUpcomingReminders() {
 
           // Reminder email to Patient
           const patientReminderSubject = `⏰ Reminder: Consultation with Dr. Prajakta Joshi in 30 minutes (${apt.time} IST)`;
-          const patientReminderText = `Hello ${apt.patientName},\n\nYour consultation with Dr. Prajakta Joshi begins in 30 minutes at ${apt.time} IST (${isOnline ? 'Online Video Meet' : 'In Clinic'}).\n\n${isOnline && apt.meetLink ? `Google Meet Link: ${apt.meetLink}\n` : ''}${!isOnline ? `Clinic Location: ${CLINIC_ADDRESS}\n` : ''}\nDoctor: Dr. Prajakta Joshi\nWhatsApp Support: https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}\n\nGyromotion Physiotherapy Clinic`;
+          const patientReminderText = `Hello ${apt.patientName},\n\nYour consultation with Dr. Prajakta Joshi begins in 30 minutes at ${apt.time} IST (${isOnline ? 'Online Video Meet' : 'In Clinic'}).\n\n${isOnline && apt.meetLink ? `Google Meet Link: ${apt.meetLink}\n` : ''}${!isOnline ? `Clinic Location: ${CLINIC_ADDRESS}\nGoogle Maps Navigation: ${CLINIC_MAPS_URL}\n` : ''}\nDoctor: Dr. Prajakta Joshi\nWhatsApp Support: https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}\n\nGyromotion Physiotherapy Clinic`;
           const patientReminderHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; background: #ffffff;">
               <div style="background-color: #041f46; color: #ffffff; padding: 22px 20px; text-align: center;">
@@ -336,7 +337,10 @@ async function checkUpcomingReminders() {
                   <p style="margin: 4px 0;"><strong>Date:</strong> ${apt.date}</p>
                   <p style="margin: 4px 0;"><strong>Time:</strong> ${apt.time} IST</p>
                   <p style="margin: 4px 0;"><strong>Mode:</strong> ${isOnline ? 'Online Video Meet' : 'Offline In Clinic'}</p>
-                  ${!isOnline ? `<p style="margin: 4px 0;"><strong>Location:</strong> ${CLINIC_ADDRESS}</p>` : ''}
+                  ${!isOnline ? `
+                    <p style="margin: 4px 0;"><strong>Location:</strong> ${CLINIC_ADDRESS}</p>
+                    <p style="margin: 4px 0;"><strong>Directions:</strong> <a href="${CLINIC_MAPS_URL}" target="_blank" style="color: #2563eb; font-weight: bold;">Open in Google Maps</a></p>
+                  ` : ''}
                 </div>
                 ${isOnline && apt.meetLink ? `
                   <div style="text-align: center; margin: 22px 0;">
@@ -346,7 +350,12 @@ async function checkUpcomingReminders() {
                     <p style="margin: 8px 0 0; font-size: 12px; color: #64748b;">Link: ${apt.meetLink}</p>
                   </div>
                 ` : `
-                  <p style="font-size: 13px; color: #64748b; margin: 12px 0;">Please arrive 5-10 minutes prior to your slot.</p>
+                  <div style="text-align: center; margin: 18px 0;">
+                    <a href="${CLINIC_MAPS_URL}" target="_blank" style="display: inline-block; background-color: #041f46; color: #ffffff !important; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; box-shadow: 0 2px 6px rgba(4,31,70,0.2);">
+                      📍 Navigate to Clinic on Google Maps
+                    </a>
+                  </div>
+                  <p style="font-size: 13px; color: #64748b; margin: 12px 0; text-align: center;">Please arrive 5-10 minutes prior to your slot.</p>
                 `}
                 <div style="margin-top: 20px; padding: 12px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; font-size: 13px; color: #166534;">
                   💬 Running late or need assistance? Chat with Dr. Prajakta on <a href="https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}&text=Hi%20Dr.%20Prajakta" style="color: #166534; font-weight: bold;">WhatsApp</a>.
@@ -573,14 +582,22 @@ app.post('/api/book-appointment', upload.array('files', 5), async (req, res) => 
                   <p style="margin: 6px 0;"><strong>Time:</strong> ${time} IST</p>
                   <p style="margin: 6px 0;"><strong>Consultation Mode:</strong> ${isOnline ? 'Online Video Meet' : 'Offline In Clinic'}</p>
                   ${isOnline && appointmentType ? `<p style="margin: 6px 0;"><strong>Type:</strong> ${appointmentType}</p>` : ''}
-                  ${!isOnline ? `<p style="margin: 6px 0;"><strong>Clinic Address:</strong> ${CLINIC_ADDRESS}</p>` : ''}
+                  ${!isOnline ? `
+                    <p style="margin: 6px 0;"><strong>Clinic Address:</strong> ${CLINIC_ADDRESS}</p>
+                    <p style="margin: 6px 0;"><strong>Directions:</strong> <a href="${CLINIC_MAPS_URL}" target="_blank" style="color: #2563eb; font-weight: bold;">Open in Google Maps</a></p>
+                  ` : ''}
                 </div>
 
-                <!-- Add to Google Calendar Button -->
-                <div style="text-align: center; margin: 22px 0;">
+                <!-- Action Buttons: Calendar & Navigation -->
+                <div style="text-align: center; margin: 22px 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;">
                   <a href="${addToGoogleCalendarUrl}" target="_blank" style="display: inline-block; background-color: #041f46; color: #ffffff !important; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; box-shadow: 0 2px 8px rgba(4,31,70,0.2);">
                     📅 Add to Google Calendar
                   </a>
+                  ${!isOnline ? `
+                    <a href="${CLINIC_MAPS_URL}" target="_blank" style="display: inline-block; background-color: #2563eb; color: #ffffff !important; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; box-shadow: 0 2px 8px rgba(37,99,235,0.25);">
+                      📍 Navigate on Google Maps
+                    </a>
+                  ` : ''}
                 </div>
 
                 ${isOnline ? `
@@ -599,12 +616,13 @@ app.post('/api/book-appointment', upload.array('files', 5), async (req, res) => 
                 ` : `
                   <div style="background-color: #f1f5f9; padding: 16px; border-radius: 8px; margin: 20px 0; font-size: 14px; color: #475569;">
                     <strong>📍 Clinic Visit Instructions:</strong><br>
-                    Please arrive 5-10 minutes prior to your slot. If you have any previous MRI, X-Ray, or prescriptions, please bring them along.
+                    Please arrive 5-10 minutes prior to your slot. If you have any previous MRI, X-Ray, or prescriptions, please bring them along.<br>
+                    Need turn-by-turn directions? Use the <a href="${CLINIC_MAPS_URL}" target="_blank" style="color: #2563eb; font-weight: bold;">Google Maps Navigation Link</a>.
                   </div>
                 `}
 
                 <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 14px 18px; border-radius: 8px; margin: 20px 0; font-size: 13px; color: #166534;">
-                  <strong>💬 Need to change timing or reschedule?</strong><br>
+                  💬 Need to change timing or reschedule?</strong><br>
                   Connect with Dr. Prajakta on <a href="https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}&text=Hi%20Dr.%20Prajakta,%20I%20have%20an%20appointment%20booked%20for%20${date}%20at%20${time}%20and%20need%20to%20change%20the%20timing" style="color: #166534; font-weight: bold;">WhatsApp</a> or visit our <a href="https://gyromotionphysio.in/about.html#contact-section" style="color: #166534; font-weight: bold;">Contact Page</a>.
                 </div>
 
@@ -631,7 +649,7 @@ app.post('/api/book-appointment', upload.array('files', 5), async (req, res) => 
           const icsInviteData = generateIcsInvite({
             uid: `apt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
             summary: `Consultation with Dr. Prajakta Joshi (${isOnline ? 'Online Meet' : 'In Clinic'})`,
-            description: `Doctor: Dr. Prajakta Joshi (Gyromotion Physiotherapy Clinic)\nMode: ${isOnline ? 'Online Video Meet' : 'In Clinic'}\n${isOnline && meetLink ? `Google Meet Link: ${meetLink}\n` : ''}${!isOnline ? `Address: ${CLINIC_ADDRESS}\n` : ''}WhatsApp: https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}`,
+            description: `Doctor: Dr. Prajakta Joshi (Gyromotion Physiotherapy Clinic)\nMode: ${isOnline ? 'Online Video Meet' : 'In Clinic'}\n${isOnline && meetLink ? `Google Meet Link: ${meetLink}\n` : ''}${!isOnline ? `Address: ${CLINIC_ADDRESS}\nGoogle Maps Directions: ${CLINIC_MAPS_URL}\n` : ''}WhatsApp: https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}`,
             location: isOnline ? (meetLink || 'Google Meet') : CLINIC_ADDRESS,
             start: startIso,
             end: endIso,
@@ -641,7 +659,7 @@ app.post('/api/book-appointment', upload.array('files', 5), async (req, res) => 
           });
 
           // Email plain-text fallback for Patient
-          const patientEmailText = `Hello ${patientName},\n\nYour appointment with Dr. Prajakta Joshi has been successfully confirmed!\n\nAppointment Details:\n- Date: ${formattedDate}\n- Time: ${time} IST\n- Consultation Mode: ${isOnline ? 'Online Video Meet' : 'Offline In Clinic'}\n${isOnline && appointmentType ? `- Type: ${appointmentType}\n` : ''}${isOnline && meetLink ? `- Google Meet Link: ${meetLink}\n` : ''}${!isOnline ? `- Clinic Address: ${CLINIC_ADDRESS}\n` : ''}\nA 30-minute advance calendar invite is attached to this email.\n\nNeed to reschedule? Connect on WhatsApp: https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}\n\n🤖 Note: This is an automated system-generated confirmation email.\nGyromotion Physiotherapy Clinic`;
+          const patientEmailText = `Hello ${patientName},\n\nYour appointment with Dr. Prajakta Joshi has been successfully confirmed!\n\nAppointment Details:\n- Date: ${formattedDate}\n- Time: ${time} IST\n- Consultation Mode: ${isOnline ? 'Online Video Meet' : 'Offline In Clinic'}\n${isOnline && appointmentType ? `- Type: ${appointmentType}\n` : ''}${isOnline && meetLink ? `- Google Meet Link: ${meetLink}\n` : ''}${!isOnline ? `- Clinic Address: ${CLINIC_ADDRESS}\n- Google Maps Navigation: ${CLINIC_MAPS_URL}\n` : ''}\nA 30-minute advance calendar invite is attached to this email.\n\nNeed to reschedule? Connect on WhatsApp: https://api.whatsapp.com/send?phone=${CLINIC_WHATSAPP}\n\n🤖 Note: This is an automated system-generated confirmation email.\nGyromotion Physiotherapy Clinic`;
 
           // Email options for Patient
           const mailOptionsPatient = {
@@ -746,7 +764,7 @@ app.post('/api/book-appointment', upload.array('files', 5), async (req, res) => 
             `Mode: ${isOnline ? `Online Meet (${appointmentType || 'General Consultation'})` : 'Offline In Clinic'}`,
             `Reason for Consultancy: ${reason || 'N/A'}`,
             `Attached Reports: ${uploadedFilesList}`,
-            isOnline ? `Google Meet Link: ${meetLink}` : `Location: ${CLINIC_ADDRESS}`,
+            isOnline ? `Google Meet Link: ${meetLink}` : `Location: ${CLINIC_ADDRESS}\nGoogle Maps Directions: ${CLINIC_MAPS_URL}`,
             `Doctor: Dr. Prajakta Joshi`,
             `Contact: Available on WhatsApp`
           ].join('\n');
